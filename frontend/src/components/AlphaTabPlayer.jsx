@@ -319,11 +319,10 @@ export default function AlphaTabPlayer({ fileUrl, songId, onStatsChange }) {
         at.beatMouseUp.on(() => {
           if (destroyed || dragStartBarRef.current === null) return
           dragStartBarRef.current = null
-          // Jeśli pętla jest już aktywna, zastosuj nowy zakres.
-          // W przeciwnym razie tylko ustaw zakres i pozwól użytkownikowi włączyć pętlę ręcznie.
-          if (loopOnRef.current) {
-            applyLoopRangeRef.current?.(loopStartRef.current, loopEndRef.current)
-          }
+          // Aktywuj pętlę od razu po wyborze zakresu
+          applyLoopRangeRef.current?.(loopStartRef.current, loopEndRef.current)
+          setLoopOn(true)
+          loopOnRef.current = true
         })
 
         at.load(fileUrl)
@@ -684,6 +683,30 @@ export default function AlphaTabPlayer({ fileUrl, songId, onStatsChange }) {
       </div>
     )}
 
+    {/* BPM — floating fixed panel */}
+    {ready && (
+      <div className="at-bpm-panel">
+        <span className="at-bpm-panel-label">BPM</span>
+        <button className="at-bpm-step" onClick={() => stepBpm(-5)} disabled={(bpm ?? 0) <= BPM_MIN} title="-5 BPM (-)">−</button>
+        <div className="at-bpm-field">
+          <input
+            className="at-bpm-input" type="number" min={BPM_MIN} max={BPM_MAX}
+            value={bpmInput} onChange={handleBpmInput} onBlur={handleBpmCommit}
+            onKeyDown={handleBpmKey} title="Tempo (BPM)"
+          />
+        </div>
+        <button className="at-bpm-step" onClick={() => stepBpm(+5)} disabled={(bpm ?? 0) >= BPM_MAX} title="+5 BPM (+)">+</button>
+        {!isOriginalBpm && (
+          <button className="at-bpm-reset" onClick={resetBpm} title={`Reset do ${originalBpmRef.current} BPM`}>↺</button>
+        )}
+        <input
+          className="at-bpm-panel-slider" type="range" min={BPM_MIN} max={BPM_MAX} step="1"
+          value={bpm ?? originalBpmRef.current ?? 120} onChange={handleBpmSlider}
+          title="Suwak tempa"
+        />
+      </div>
+    )}
+
     {/* Loop — floating fixed panel */}
     {ready && totalBars > 0 && (
       <div className="at-loop-row">
@@ -788,23 +811,6 @@ export default function AlphaTabPlayer({ fileUrl, songId, onStatsChange }) {
           )}
         </div>
 
-        {/* BPM */}
-        <div className="at-bpm-group">
-          <button className="at-bpm-step" onClick={() => stepBpm(-5)} disabled={!ready || (bpm ?? 0) <= BPM_MIN} title="-5 BPM">−</button>
-          <div className="at-bpm-field">
-            <input
-              className="at-bpm-input" type="number" min={BPM_MIN} max={BPM_MAX}
-              value={bpmInput} onChange={handleBpmInput} onBlur={handleBpmCommit}
-              onKeyDown={handleBpmKey} disabled={!ready} title="Tempo (BPM)"
-            />
-            <span className="at-bpm-unit">BPM</span>
-          </div>
-          <button className="at-bpm-step" onClick={() => stepBpm(+5)} disabled={!ready || (bpm ?? 0) >= BPM_MAX} title="+5 BPM">+</button>
-          {!isOriginalBpm && ready && (
-            <button className="at-bpm-reset" onClick={resetBpm} title={`Reset to ${originalBpmRef.current} BPM`}>↺</button>
-          )}
-        </div>
-
         {/* Skróty klawiszowe */}
         <button
           className="at-btn at-btn-shortcuts"
@@ -812,18 +818,6 @@ export default function AlphaTabPlayer({ fileUrl, songId, onStatsChange }) {
           title="Skróty klawiszowe (?)"
         >?</button>
       </div>
-
-      {/* BPM slider */}
-      {ready && (
-        <div className="at-bpm-slider-row">
-          <span className="at-bpm-slider-label">{BPM_MIN}</span>
-          <input
-            className="at-bpm-slider" type="range" min={BPM_MIN} max={BPM_MAX} step="1"
-            value={bpm ?? originalBpmRef.current ?? 120} onChange={handleBpmSlider}
-          />
-          <span className="at-bpm-slider-label">{BPM_MAX}</span>
-        </div>
-      )}
 
       {/* Score */}
       <div className="at-score-wrapper">

@@ -332,34 +332,43 @@
 }
 .at-loop-clear:hover { color: var(--accent); background: var(--accent-dim); }
 
-/* ── BPM slider row ──────────────────────────────────────────── */
-.at-bpm-slider-row {
+/* ── BPM floating fixed panel ────────────────────────────────── */
+.at-bpm-panel {
+  position: fixed;
+  bottom: 28px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 900;
+
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 7px 14px 9px;
-  background: linear-gradient(180deg, #111128, #0e0e22);
-  border-bottom: 1px solid var(--border);
+  gap: 6px;
+  padding: 8px 14px;
+
+  background: #0f0f26;
+  border: 1px solid #28285a;
+  border-radius: 50px;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.55), 0 0 0 1px #ffffff08;
 }
 
-.at-bpm-slider {
-  flex: 1;
+.at-bpm-panel-label {
+  font-size: 11px;
+  color: var(--text-muted);
+  font-weight: 700;
+  white-space: nowrap;
+  user-select: none;
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+}
+
+.at-bpm-panel-slider {
+  width: 100px;
   accent-color: var(--accent);
   background: none;
   border: none;
   box-shadow: none;
   padding: 0;
-  height: 4px;
   cursor: pointer;
-}
-
-.at-bpm-slider-label {
-  font-size: 10px;
-  color: var(--text-muted);
-  min-width: 28px;
-  text-align: center;
-  user-select: none;
-  letter-spacing: 0.3px;
 }
 
 /* ── Score area ─────────────────────────────────────────────── */
@@ -638,6 +647,20 @@
 .at-saved-loop-delete:hover { color: var(--accent); background: var(--accent-dim); }
 
 @media (max-width: 480px) {
+  .at-bpm-panel {
+    bottom: 80px;
+    left: 18px;
+    right: 18px;
+    transform: none;
+    border-radius: 12px;
+    flex-wrap: wrap;
+  }
+
+  .at-bpm-panel-slider {
+    width: 100%;
+    flex-basis: 100%;
+  }
+
   .at-loop-row {
     bottom: 18px;
     left: 18px;
