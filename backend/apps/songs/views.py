@@ -4,8 +4,10 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 from django_filters.rest_framework import DjangoFilterBackend
 
-from .models import Song, Genre
-from .serializers import SongListSerializer, SongDetailSerializer, GenreSerializer
+from .models import Song, Genre, SongVideo
+from .serializers import (
+    SongListSerializer, SongDetailSerializer, GenreSerializer, SongVideoSerializer
+)
 from .filters import SongFilter
 
 
@@ -69,3 +71,42 @@ class GenreListView(generics.ListCreateAPIView):
         if self.request.method == 'POST':
             return [permissions.IsAdminUser()]
         return [permissions.AllowAny()]
+
+
+class SongVideoCreateView(generics.CreateAPIView):
+    queryset = SongVideo.objects.all()
+    serializer_class = SongVideoSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def perform_create(self, serializer):
+        song = serializer.validated_data['song']
+        if song.uploaded_by != self.request.user and not self.request.user.is_staff:
+            from rest_framework.exceptions import PermissionDenied
+            raise PermissionDenied('You cannot add videos to this song.')
+        serializer.save()
+
+
+class SongVideoDeleteView(generics.DestroyAPIView):
+    queryset = SongVideo.objects.all()
+    serializer_class = SongVideoSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_object(self):
+        obj = super().get_object()
+        if obj.song.uploaded_by != self.request.user and not self.request.user.is_staff:
+            from rest_framework.exceptions import PermissionDenied
+            raise PermissionDenied('You cannot delete this video.')
+        return obj
+
+
+class SongVideoUpdateView(generics.UpdateAPIView):
+    queryset = SongVideo.objects.all()
+    serializer_class = SongVideoSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_object(self):
+        obj = super().get_object()
+        if obj.song.uploaded_by != self.request.user and not self.request.user.is_staff:
+            from rest_framework.exceptions import PermissionDenied
+            raise PermissionDenied('You cannot modify this video.')
+        return obj

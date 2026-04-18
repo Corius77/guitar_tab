@@ -22,5 +22,14 @@ export const deleteSong = (id) =>
 export const playSong = (id) =>
   api.post(`/songs/${id}/play/`)
 
+export const addSongVideo = (data) =>
+  api.post('/songs/videos/', data)
+
+export const deleteSongVideo = (videoId) =>
+  api.delete(`/songs/videos/${videoId}/`)
+
+export const updateSongVideo = (videoId, data) =>
+  api.patch(`/songs/videos/${videoId}/`, data)
+
 export const getGenres = () =>
   api.get('/genres/')

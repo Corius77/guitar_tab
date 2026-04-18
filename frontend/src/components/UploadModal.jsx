@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { uploadSong } from '../api/songs'
+import { uploadSong, addSongVideo } from '../api/songs'
 import { getGenres } from '../api/songs'
 import './UploadModal.css'
 
@@ -8,7 +8,7 @@ export default function UploadModal({ onClose, onSuccess }) {
   const [file, setFile] = useState(null)
   const [form, setForm] = useState({
     title: '', artist: '', album: '', year: '',
-    genre_id: '', difficulty: '', description: '',
+    genre_id: '', difficulty: '', description: '', youtube_urls: '',
   })
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
@@ -32,9 +32,26 @@ export default function UploadModal({ onClose, onSuccess }) {
     try {
       const fd = new FormData()
       fd.append('tab_file', file)
-      Object.entries(form).forEach(([k, v]) => { if (v !== '') fd.append(k, v) })
-      const { data } = await uploadSong(fd)
-      onSuccess(data)
+      // Append all except youtube_urls which is handled separately
+      Object.entries(form).forEach(([k, v]) => { 
+        if (k !== 'youtube_urls' && v !== '') fd.append(k, v) 
+      })
+      
+      const { data: song } = await uploadSong(fd)
+      
+      // Handle multiple videos
+      const lines = form.youtube_urls.split('\n').map(s => s.trim()).filter(Boolean)
+      for (const line of lines) {
+        const [url, ...titleParts] = line.split('|')
+        const title = titleParts.join('|').trim()
+        try {
+          await addSongVideo({ song: song.id, url: url.trim(), title: title || '' })
+        } catch (vErr) {
+          console.error('Failed to add video:', line, vErr)
+        }
+      }
+
+      onSuccess(song)
       onClose()
     } catch (err) {
       const detail = err.response?.data
@@ -111,6 +128,14 @@ export default function UploadModal({ onClose, onSuccess }) {
               </select>
             </label>
           </div>
+          <label>YouTube Video URLs (one per line, optional title after '|')
+            <textarea 
+              rows={2} 
+              placeholder="https://youtube.com/watch?v=... | Lesson&#10;https://youtu.be/... | Cover" 
+              value={form.youtube_urls} 
+              onChange={e => setForm(f => ({...f, youtube_urls: e.target.value}))} 
+            />
+          </label>
           <label>Description
             <textarea rows={3} value={form.description} onChange={e => setForm(f => ({...f, description: e.target.value}))} />
           </label>

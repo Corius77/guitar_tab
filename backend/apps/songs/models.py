@@ -69,3 +69,16 @@ class Song(models.Model):
 
     def increment_play_count(self):
         Song.objects.filter(pk=self.pk).update(play_count=models.F('play_count') + 1)
+
+
+class SongVideo(models.Model):
+    song = models.ForeignKey(Song, on_delete=models.CASCADE, related_name='videos')
+    url = models.URLField(max_length=500)
+    title = models.CharField(max_length=255, blank=True, help_text="Optional title for this video")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['created_at']
+
+    def __str__(self):
+        return f'Video for {self.song.title}: {self.url}'

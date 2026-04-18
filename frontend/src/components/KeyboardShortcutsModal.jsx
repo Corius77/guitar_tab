@@ -41,6 +41,14 @@ const SHORTCUTS = [
     ],
   },
   {
+    id: 'video',
+    group: 'Wideo',
+    icon: '📺',
+    items: [
+      { keys: ['V'], label: 'Pokaż / ukryj wideo' },
+    ],
+  },
+  {
     id: 'loop',
     group: 'Pętla',
     icon: '🔁',
