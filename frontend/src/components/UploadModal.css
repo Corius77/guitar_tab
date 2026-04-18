@@ -1,0 +1,104 @@
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: #00000099;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 200;
+}
+
+.modal {
+  background: #1a1a2e;
+  border: 1px solid #2a2a4a;
+  border-radius: 12px;
+  width: min(560px, 95vw);
+  max-height: 90vh;
+  overflow-y: auto;
+}
+
+.modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 20px 24px 0;
+}
+
+.modal-header h2 { font-size: 18px; font-weight: 700; color: #e0e0f0; margin: 0; }
+
+.modal-close {
+  background: none; border: none; color: #606080;
+  font-size: 18px; cursor: pointer; padding: 4px;
+}
+.modal-close:hover { color: #e94560; }
+
+.modal-body {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 20px 24px;
+}
+
+.drop-zone {
+  border: 2px dashed #2a2a4a;
+  border-radius: 8px;
+  padding: 32px;
+  text-align: center;
+  color: #606080;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+}
+.drop-zone:hover, .drop-zone.has-file {
+  border-color: #e94560;
+  background: #e9456008;
+  color: #e0e0f0;
+}
+.drop-icon { font-size: 32px; }
+.drop-file-name { color: #e94560; font-weight: 600; }
+
+.form-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 13px;
+  color: #a0a0c0;
+}
+
+input, select, textarea {
+  background: #0f0f23;
+  border: 1px solid #2a2a4a;
+  border-radius: 6px;
+  padding: 8px 12px;
+  color: #e0e0f0;
+  font-size: 14px;
+  outline: none;
+  font-family: inherit;
+}
+input:focus, select:focus, textarea:focus { border-color: #e94560; }
+textarea { resize: vertical; }
+
+.form-error {
+  color: #e94560;
+  font-size: 13px;
+  background: #e9456015;
+  padding: 10px 14px;
+  border-radius: 6px;
+}
+
+.modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  padding-top: 4px;
+}

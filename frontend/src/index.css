@@ -1,0 +1,121 @@
+*, *::before, *::after { box-sizing: border-box; }
+
+/* ── Design tokens ───────────────────────────────────────────── */
+:root {
+  --bg:            #07071a;
+  --surface:       #0e0e26;
+  --surface-2:     #13132e;
+  --surface-3:     #191940;
+  --border:        #21214a;
+  --border-2:      #303068;
+  --accent:        #e94560;
+  --accent-hover:  #c73050;
+  --accent-dim:    #e9456028;
+  --accent-glow:   #e9456050;
+  --green:         #4cdf80;
+  --blue:          #4a8fff;
+  --text:          #e2e2f4;
+  --text-2:        #8080a8;
+  --text-muted:    #404068;
+  --radius:        8px;
+  --radius-lg:     12px;
+}
+
+/* ── Base ────────────────────────────────────────────────────── */
+html { scroll-behavior: smooth; }
+
+body {
+  margin: 0;
+  background: var(--bg);
+  background-image:
+    radial-gradient(ellipse 100% 55% at 50% -10%, #1c1c5030, transparent),
+    radial-gradient(ellipse 50% 35% at 90% 5%,  #e9456010, transparent);
+  background-attachment: fixed;
+  color: var(--text);
+  min-height: 100vh;
+  font-family: Inter, system-ui, -apple-system, sans-serif;
+  line-height: 1.5;
+  font-weight: 400;
+  -webkit-font-smoothing: antialiased;
+  color-scheme: dark;
+}
+
+/* ── Scrollbar ───────────────────────────────────────────────── */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: var(--surface); }
+::-webkit-scrollbar-thumb { background: var(--border-2); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: #505088; }
+
+/* ── Global buttons ──────────────────────────────────────────── */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  border-radius: var(--radius);
+  border: 1px solid transparent;
+  padding: 8px 18px;
+  font-size: 14px;
+  font-weight: 500;
+  font-family: inherit;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, box-shadow 0.15s, opacity 0.15s, transform 0.1s;
+  text-decoration: none;
+  white-space: nowrap;
+  letter-spacing: 0.1px;
+}
+.btn:disabled { opacity: 0.45; cursor: default; pointer-events: none; }
+.btn:not(:disabled):active { transform: scale(0.97); }
+
+.btn-primary {
+  background: linear-gradient(135deg, #e94560, #c73050);
+  color: #fff;
+  border-color: #e94560;
+  box-shadow: 0 2px 12px #e9456035;
+}
+.btn-primary:hover:not(:disabled) {
+  background: linear-gradient(135deg, #ff5570, #e94560);
+  box-shadow: 0 4px 20px #e9456055;
+}
+
+.btn-ghost {
+  background: transparent;
+  color: var(--text-2);
+  border-color: var(--border);
+}
+.btn-ghost:hover:not(:disabled) {
+  background: var(--surface-3);
+  color: var(--text);
+  border-color: var(--border-2);
+}
+
+.btn-sm { padding: 5px 13px; font-size: 13px; }
+
+/* ── Global tags ─────────────────────────────────────────────── */
+.tag {
+  font-size: 11px;
+  background: var(--surface-3);
+  border: 1px solid var(--border);
+  padding: 2px 9px;
+  border-radius: 20px;
+  color: var(--text-2);
+  white-space: nowrap;
+  letter-spacing: 0.2px;
+}
+
+/* ── Form elements (global base) ─────────────────────────────── */
+input, select, textarea {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 9px 13px;
+  color: var(--text);
+  font-size: 14px;
+  outline: none;
+  font-family: inherit;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+input:focus, select:focus, textarea:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-dim);
+}

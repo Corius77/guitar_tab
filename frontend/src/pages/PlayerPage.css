@@ -1,0 +1,121 @@
+.player-page {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 28px 20px 72px;
+}
+
+/* ── Loading / Error ─────────────────────────────────────────── */
+.player-loading, .player-error {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: calc(100vh - 140px);
+  gap: 16px;
+  color: var(--text-muted);
+}
+
+.spinner {
+  width: 36px;
+  height: 36px;
+  border: 3px solid var(--border);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 0.75s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ── Breadcrumb ──────────────────────────────────────────────── */
+.player-breadcrumb {
+  margin-bottom: 22px;
+}
+.player-breadcrumb a {
+  color: var(--text-muted);
+  text-decoration: none;
+  font-size: 13px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 0;
+  transition: color 0.15s;
+}
+.player-breadcrumb a:hover { color: var(--text-2); }
+
+/* ── Meta ────────────────────────────────────────────────────── */
+.player-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 16px;
+  margin-bottom: 18px;
+  padding-bottom: 20px;
+  border-bottom: 1px solid var(--border);
+}
+
+.player-title-area {
+  flex: 1;
+  min-width: 200px;
+}
+
+.player-title-area h1 {
+  font-size: 30px;
+  font-weight: 800;
+  color: var(--text);
+  margin: 0 0 5px;
+  line-height: 1.15;
+  letter-spacing: -0.7px;
+}
+
+.player-artist {
+  display: block;
+  font-size: 16px;
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.player-album {
+  display: block;
+  font-size: 13px;
+  color: var(--text-muted);
+  margin-top: 3px;
+}
+
+/* ── Tags ────────────────────────────────────────────────────── */
+.player-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
+
+.tag-uploader { color: var(--text-2); }
+
+/* ── Description ─────────────────────────────────────────────── */
+.player-description {
+  color: var(--text-2);
+  font-size: 14px;
+  line-height: 1.65;
+  margin-bottom: 24px;
+  max-width: 700px;
+  padding: 14px 16px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  border-left: 3px solid var(--border-2);
+}
+
+/* ── Danger btn ──────────────────────────────────────────────── */
+.btn-danger {
+  background: #e9456014;
+  border: 1px solid #e9456045;
+  color: var(--accent);
+  border-radius: 8px;
+  padding: 6px 14px;
+  cursor: pointer;
+  font-size: 13px;
+  font-family: inherit;
+  transition: background 0.15s, box-shadow 0.15s;
+}
+.btn-danger:hover { background: #e9456028; box-shadow: 0 0 12px #e9456025; }
+.btn-danger:disabled { opacity: 0.45; cursor: default; }
+

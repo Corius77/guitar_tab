@@ -1,0 +1,56 @@
+.navbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 28px;
+  height: 58px;
+  background: rgba(10, 10, 28, 0.82);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  box-shadow: 0 1px 0 #ffffff05, 0 4px 24px #00000040;
+  position: sticky;
+  top: 0;
+  z-index: 200;
+}
+
+.navbar-brand {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  text-decoration: none;
+}
+
+.brand-icon {
+  font-size: 22px;
+  filter: drop-shadow(0 0 6px #e9456060);
+}
+
+.brand-name {
+  font-size: 19px;
+  font-weight: 800;
+  letter-spacing: -0.6px;
+  background: linear-gradient(135deg, #ff6b80 0%, #e94560 50%, #c73050 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.navbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.navbar-progress-link {
+  color: var(--text-2) !important;
+}
+
+.navbar-user {
+  color: var(--text-2);
+  font-size: 13px;
+  padding: 4px 10px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+}

@@ -1,0 +1,187 @@
+/* ── Backdrop ────────────────────────────────────────────────────────────── */
+.ks-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(4, 4, 16, 0.80);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  animation: ks-fade-in 0.15s ease;
+}
+
+@keyframes ks-fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+/* ── Panel ───────────────────────────────────────────────────────────────── */
+.ks-panel {
+  background: #0f0f26;
+  border: 1px solid #28285a;
+  border-radius: 16px;
+  box-shadow: 0 32px 80px rgba(0, 0, 0, 0.7), 0 0 0 1px #ffffff08, 0 0 60px #e9456010;
+  width: min(640px, calc(100vw - 32px));
+  max-height: calc(100vh - 48px);
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  animation: ks-slide-up 0.18s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@keyframes ks-slide-up {
+  from { opacity: 0; transform: translateY(12px) scale(0.97); }
+  to   { opacity: 1; transform: translateY(0)   scale(1);     }
+}
+
+/* ── Header ──────────────────────────────────────────────────────────────── */
+.ks-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 18px 20px 14px;
+  border-bottom: 1px solid #2a2a4a;
+}
+
+.ks-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: #c8c8e8;
+  letter-spacing: 0.3px;
+}
+
+.ks-close {
+  background: none;
+  border: none;
+  color: #505070;
+  font-size: 16px;
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  border-radius: 6px;
+  transition: color 0.12s, background 0.12s;
+  line-height: 1;
+  padding: 0;
+}
+.ks-close:hover { color: #e0e0f0; background: #ffffff12; }
+
+/* ── Shortcuts grid ──────────────────────────────────────────────────────── */
+.ks-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0;
+  padding: 6px 8px 8px;
+}
+
+/* Pętla (ostatnia sekcja) rozciąga się na całą szerokość */
+.ks-section:last-child {
+  grid-column: 1 / -1;
+}
+
+/* ── Section ─────────────────────────────────────────────────────────────── */
+.ks-section {
+  padding: 12px 12px 10px;
+}
+
+.ks-section-header {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin-bottom: 8px;
+}
+
+.ks-section-icon {
+  font-size: 13px;
+  line-height: 1;
+  opacity: 0.7;
+}
+
+.ks-section-title {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
+  color: #5060a0;
+}
+
+/* ── List ────────────────────────────────────────────────────────────────── */
+.ks-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.ks-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 5px 6px;
+  border-radius: 6px;
+  transition: background 0.1s;
+}
+.ks-item:hover { background: #ffffff06; }
+
+.ks-label {
+  font-size: 13px;
+  color: #9090b8;
+  flex: 1;
+}
+
+.ks-keys {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+/* ── Key badge ───────────────────────────────────────────────────────────── */
+.ks-key {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 26px;
+  height: 22px;
+  padding: 0 6px;
+  background: #1e1e3a;
+  border: 1px solid #3a3a60;
+  border-bottom: 2px solid #2a2a50;
+  border-radius: 5px;
+  font-family: ui-monospace, 'Cascadia Code', 'Consolas', monospace;
+  font-size: 11px;
+  font-weight: 600;
+  color: #c0c0e0;
+  user-select: none;
+  box-shadow: 0 1px 0 #0a0a1a;
+  letter-spacing: 0;
+}
+
+/* ── Footer ──────────────────────────────────────────────────────────────── */
+.ks-footer {
+  padding: 10px 20px 14px;
+  border-top: 1px solid #1e1e38;
+  font-size: 11px;
+  color: #40405a;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+
+/* ── Responsive ──────────────────────────────────────────────────────────── */
+@media (max-width: 480px) {
+  .ks-grid {
+    grid-template-columns: 1fr;
+  }
+  .ks-section:last-child {
+    grid-column: auto;
+  }
+}
