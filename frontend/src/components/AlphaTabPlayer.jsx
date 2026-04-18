@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import './AlphaTabPlayer.css'
 import KeyboardShortcutsModal from './KeyboardShortcutsModal'
 import { useAuth } from '../context/AuthContext'
-import { startSession, endSession } from '../api/practice'
+import { startSession, endSession, getSavedLoops, createSavedLoop, deleteSavedLoop } from '../api/practice'
 
 const BPM_MIN = 20
 const BPM_MAX = 300
@@ -92,6 +92,13 @@ export default function AlphaTabPlayer({ fileUrl, songId, onStatsChange }) {
   const [loopStart, setLoopStart] = useState(1)
   const [loopEnd, setLoopEnd] = useState(1)
   const [loopOn, setLoopOn] = useState(false)
+
+  // Zapisane pętle
+  const [savedLoops, setSavedLoops] = useState([])
+  const [showSavedLoops, setShowSavedLoops] = useState(false)
+  const [saveLoopName, setSaveLoopName] = useState('')
+  const [savingLoop, setSavingLoop] = useState(false)
+  const [saveLoopError, setSaveLoopError] = useState('')
 
   useEffect(() => { metronomeOnRef.current = metronomeOn }, [metronomeOn])
   useEffect(() => { metronomeVolumeRef.current = metronomeVolume }, [metronomeVolume])
@@ -563,6 +570,57 @@ export default function AlphaTabPlayer({ fileUrl, songId, onStatsChange }) {
   }
   clearLoopRef.current = clearLoop
 
+  // ── Zapisane pętle ────────────────────────────────────────────────────────
+  useEffect(() => {
+    if (!user || !songId) return
+    getSavedLoops(songId)
+      .then(({ data }) => setSavedLoops(data))
+      .catch(() => {})
+  }, [user, songId])
+
+  const handleSaveLoop = async () => {
+    const name = saveLoopName.trim()
+    if (!name || savingLoop) return
+    setSavingLoop(true)
+    setSaveLoopError('')
+    try {
+      const { data } = await createSavedLoop(songId, {
+        name,
+        measure_start: loopStartRef.current,
+        measure_end: loopEndRef.current,
+      })
+      setSavedLoops(prev => [...prev, data].sort((a, b) =>
+        a.measure_start !== b.measure_start
+          ? a.measure_start - b.measure_start
+          : a.name.localeCompare(b.name)
+      ))
+      setSaveLoopName('')
+    } catch (err) {
+      const msg = err?.response?.data?.detail
+        || Object.values(err?.response?.data || {}).flat().join(' ')
+        || 'Błąd zapisu'
+      setSaveLoopError(msg)
+    }
+    setSavingLoop(false)
+  }
+
+  const handleDeleteSavedLoop = async (id) => {
+    try {
+      await deleteSavedLoop(id)
+      setSavedLoops(prev => prev.filter(l => l.id !== id))
+    } catch {}
+  }
+
+  const handleLoadSavedLoop = (loop) => {
+    setLoopStart(loop.measure_start)
+    setLoopEnd(loop.measure_end)
+    loopStartRef.current = loop.measure_start
+    loopEndRef.current = loop.measure_end
+    applyLoopRangeRef.current?.(loop.measure_start, loop.measure_end)
+    setLoopOn(true)
+    loopOnRef.current = true
+  }
+
   // ─────────────────────────────────────────────────────────────────────────
   const progress = endTime > 0 ? (currentTime / endTime) * 100 : 0
   const isOriginalBpm = bpm === originalBpmRef.current
@@ -571,6 +629,59 @@ export default function AlphaTabPlayer({ fileUrl, songId, onStatsChange }) {
   return (
     <>
     {showShortcuts && <KeyboardShortcutsModal onClose={() => setShowShortcuts(false)} />}
+
+    {/* Saved loops panel — pojawia się nad panelem pętli */}
+    {ready && totalBars > 0 && user && showSavedLoops && (
+      <div className="at-saved-loops-panel">
+        <div className="at-saved-loops-header">
+          <span>Zapisane pętle</span>
+          <button className="at-saved-loops-close" onClick={() => setShowSavedLoops(false)}>✕</button>
+        </div>
+
+        <div className="at-save-loop-form">
+          <input
+            className="at-save-loop-name-input"
+            type="text"
+            placeholder={`Nazwa dla taktów ${loopStart}–${loopEnd}…`}
+            value={saveLoopName}
+            onChange={e => { setSaveLoopName(e.target.value); setSaveLoopError('') }}
+            onKeyDown={e => e.key === 'Enter' && handleSaveLoop()}
+            maxLength={60}
+          />
+          <button
+            className="at-save-loop-btn"
+            onClick={handleSaveLoop}
+            disabled={!saveLoopName.trim() || savingLoop}
+            title={`Zapisz takt ${loopStart}–${loopEnd}`}
+          >{savingLoop ? '…' : 'Zapisz'}</button>
+        </div>
+        {saveLoopError && <p className="at-save-loop-error">{saveLoopError}</p>}
+
+        {savedLoops.length === 0 ? (
+          <p className="at-no-saved-loops">Brak zapisanych pętli</p>
+        ) : (
+          <ul className="at-saved-loops-list">
+            {savedLoops.map(loop => (
+              <li key={loop.id} className="at-saved-loop-item">
+                <button
+                  className="at-saved-loop-load"
+                  onClick={() => handleLoadSavedLoop(loop)}
+                  title={`Wczytaj takty ${loop.measure_start}–${loop.measure_end}`}
+                >
+                  <span className="at-saved-loop-name">{loop.name}</span>
+                  <span className="at-saved-loop-range">{loop.measure_start}–{loop.measure_end}</span>
+                </button>
+                <button
+                  className="at-saved-loop-delete"
+                  onClick={() => handleDeleteSavedLoop(loop.id)}
+                  title="Usuń pętlę"
+                >✕</button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+    )}
 
     {/* Loop — floating fixed panel */}
     {ready && totalBars > 0 && (
@@ -617,6 +728,14 @@ export default function AlphaTabPlayer({ fileUrl, songId, onStatsChange }) {
           onClick={clearLoop}
           title="Wyczyść pętlę"
         >✕</button>
+
+        {user && (
+          <button
+            className={`at-loop-bookmarks ${showSavedLoops ? 'at-loop-bookmarks--open' : ''}`}
+            onClick={() => setShowSavedLoops(prev => !prev)}
+            title="Zapisane pętle"
+          >🔖{savedLoops.length > 0 && <span className="at-loop-bookmarks-count">{savedLoops.length}</span>}</button>
+        )}
       </div>
     )}
 

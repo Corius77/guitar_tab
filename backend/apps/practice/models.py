@@ -32,3 +32,18 @@ class LoopEvent(models.Model):
 
     class Meta:
         ordering = ['measure_start']
+
+
+class SavedLoop(models.Model):
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='saved_loops')
+    song = models.ForeignKey(Song, on_delete=models.CASCADE, related_name='saved_loops')
+    name = models.CharField(max_length=100)
+    measure_start = models.PositiveIntegerField()
+    measure_end = models.PositiveIntegerField()
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['measure_start', 'name']
+
+    def __str__(self):
+        return f'{self.name} ({self.measure_start}–{self.measure_end})'

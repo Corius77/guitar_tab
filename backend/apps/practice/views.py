@@ -8,8 +8,8 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from .models import LoopEvent, PracticeSession
-from .serializers import EndSessionSerializer, StartSessionSerializer
+from .models import LoopEvent, PracticeSession, SavedLoop
+from .serializers import EndSessionSerializer, SavedLoopSerializer, StartSessionSerializer
 
 
 class StartSessionView(CreateAPIView):
@@ -115,6 +115,34 @@ class SongStatsView(APIView):
             'measure_heat': {str(k): v for k, v in measure_heat.items()},
             'recent_sessions': recent,
         })
+
+
+class SavedLoopListView(APIView):
+    """GET/POST /api/practice/songs/{song_id}/saved-loops/ — lista i zapis pętli."""
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, song_id):
+        loops = SavedLoop.objects.filter(user=request.user, song_id=song_id)
+        return Response(SavedLoopSerializer(loops, many=True).data)
+
+    def post(self, request, song_id):
+        ser = SavedLoopSerializer(data=request.data)
+        ser.is_valid(raise_exception=True)
+        ser.save(user=request.user, song_id=song_id)
+        return Response(ser.data, status=status.HTTP_201_CREATED)
+
+
+class SavedLoopDetailView(APIView):
+    """DELETE /api/practice/saved-loops/{pk}/ — usuwa zapisaną pętlę."""
+    permission_classes = [IsAuthenticated]
+
+    def delete(self, request, pk):
+        try:
+            loop = SavedLoop.objects.get(pk=pk, user=request.user)
+        except SavedLoop.DoesNotExist:
+            return Response({'detail': 'Not found.'}, status=status.HTTP_404_NOT_FOUND)
+        loop.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
 
 
 class DashboardView(APIView):
