@@ -51,7 +51,7 @@ A web app for browsing and practicing guitar tablatures — inspired by Songster
 ### 1. Clone the repository
 
 ```bash
-git clone https://github.com/YOUR_USERNAME/guitar_tab.git
+git clone https://github.com/Corius77/guitar_tab.git
 cd guitar_tab
 ```
 
