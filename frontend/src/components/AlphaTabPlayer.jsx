@@ -319,10 +319,11 @@ export default function AlphaTabPlayer({ fileUrl, songId, onStatsChange }) {
         at.beatMouseUp.on(() => {
           if (destroyed || dragStartBarRef.current === null) return
           dragStartBarRef.current = null
-          // Aktywuj pętlę od razu po wyborze zakresu
-          applyLoopRangeRef.current?.(loopStartRef.current, loopEndRef.current)
-          setLoopOn(true)
-          loopOnRef.current = true
+          // Jeśli pętla jest już aktywna, zastosuj nowy zakres.
+          // W przeciwnym razie tylko ustaw zakres i pozwól użytkownikowi włączyć pętlę ręcznie.
+          if (loopOnRef.current) {
+            applyLoopRangeRef.current?.(loopStartRef.current, loopEndRef.current)
+          }
         })
 
         at.load(fileUrl)
