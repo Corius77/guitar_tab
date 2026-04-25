@@ -64,6 +64,9 @@ export default function AlphaTabPlayer({ fileUrl, songId, onStatsChange }) {
   // Drag-to-select na tabulaturze
   const dragStartBarRef = useRef(null)
 
+  // Ścieżki (tracki) pliku GP
+  const scoreRef = useRef(null)
+
   // ── Śledzenie sesji ────────────────────────────────────────────────────────
   const { user } = useAuth()
   const sessionIdRef = useRef(null)         // id aktywnej sesji backendu
@@ -99,6 +102,10 @@ export default function AlphaTabPlayer({ fileUrl, songId, onStatsChange }) {
   const [saveLoopName, setSaveLoopName] = useState('')
   const [savingLoop, setSavingLoop] = useState(false)
   const [saveLoopError, setSaveLoopError] = useState('')
+
+  // Ścieżki pliku GP
+  const [tracks, setTracks] = useState([])
+  const [selectedTrackIndex, setSelectedTrackIndex] = useState(null) // null = wszystkie
 
   useEffect(() => { metronomeOnRef.current = metronomeOn }, [metronomeOn])
   useEffect(() => { metronomeVolumeRef.current = metronomeVolume }, [metronomeVolume])
@@ -197,6 +204,9 @@ export default function AlphaTabPlayer({ fileUrl, songId, onStatsChange }) {
         loopCountsRef.current = {}
         lastPositionRef.current = 0
         playingRef.current = false
+        setTracks([])
+        setSelectedTrackIndex(null)
+        scoreRef.current = null
 
         const { AlphaTabApi } = await import('@coderline/alphatab')
         if (destroyed) return
@@ -283,6 +293,13 @@ export default function AlphaTabPlayer({ fileUrl, songId, onStatsChange }) {
           setTotalBars(count)
           setLoopStart(1)
           setLoopEnd(count)
+
+          // Zapisz ścieżki
+          scoreRef.current = score
+          if (score?.tracks?.length) {
+            setTracks([...score.tracks])
+          }
+          setSelectedTrackIndex(null)
 
           setReady(true)
         })
@@ -491,6 +508,22 @@ export default function AlphaTabPlayer({ fileUrl, songId, onStatsChange }) {
   const stepBpm = (delta) => applyBpm((bpm ?? 120) + delta)
   const resetBpm = () => { if (originalBpmRef.current) applyBpm(originalBpmRef.current) }
 
+  // ── Track selection ───────────────────────────────────────────────────────
+  const handleTrackChange = (e) => {
+    const at = apiRef.current
+    const score = scoreRef.current
+    if (!at || !score) return
+    const val = e.target.value
+    if (val === 'all') {
+      setSelectedTrackIndex(null)
+      at.renderTracks(score.tracks)
+    } else {
+      const idx = parseInt(val, 10)
+      setSelectedTrackIndex(idx)
+      at.renderTracks([score.tracks[idx]])
+    }
+  }
+
   // ── Volume ────────────────────────────────────────────────────────────────
   const handleVolume = (e) => {
     const v = parseFloat(e.target.value)
@@ -680,6 +713,26 @@ export default function AlphaTabPlayer({ fileUrl, songId, onStatsChange }) {
             ))}
           </ul>
         )}
+      </div>
+    )}
+
+    {/* Track selector */}
+    {ready && tracks.length > 1 && (
+      <div className="at-track-select">
+        <label className="at-track-select-label" htmlFor="at-track-select-input">Ścieżka:</label>
+        <select
+          id="at-track-select-input"
+          className="at-track-select-dropdown"
+          value={selectedTrackIndex ?? 'all'}
+          onChange={handleTrackChange}
+        >
+          <option value="all">Wszystkie ({tracks.length})</option>
+          {tracks.map((track, i) => (
+            <option key={i} value={i}>
+              {track.name || `Ścieżka ${i + 1}`}
+            </option>
+          ))}
+        </select>
       </div>
     )}
 
