@@ -294,12 +294,16 @@ export default function AlphaTabPlayer({ fileUrl, songId, onStatsChange }) {
           setLoopStart(1)
           setLoopEnd(count)
 
-          // Zapisz ścieżki
+          // Zapisz ścieżki; przy wielu ścieżkach renderuj tylko pierwszą
           scoreRef.current = score
-          if (score?.tracks?.length) {
+          if (score?.tracks?.length > 1) {
             setTracks([...score.tracks])
+            setSelectedTrackIndex(0)
+            at.renderTracks([score.tracks[0]])
+          } else {
+            setTracks(score?.tracks ? [...score.tracks] : [])
+            setSelectedTrackIndex(null)
           }
-          setSelectedTrackIndex(null)
 
           setReady(true)
         })

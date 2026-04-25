@@ -389,16 +389,20 @@
 
 /* ── AlphaTab cursors ────────────────────────────────────────── */
 .at-cursor-bar {
-  background: rgba(255, 200, 0, 0.16);
-  border-left: 2px solid rgba(255, 180, 0, 0.45);
+  background: rgba(0, 200, 255, 0.12);
+  border-left: 4px solid rgba(0, 200, 255, 0.7);
 }
 
 .at-cursor-beat {
-  background: var(--accent);
-  width: 2px !important;
-  opacity: 0.9;
-  border-radius: 1px;
-  box-shadow: 0 0 8px #e9456088;
+  background: #00d4ff;
+  width: 288px !important;
+  opacity: 1;
+  border-radius: 2px;
+  box-shadow:
+    0 0 0 2px #003a44,
+    0 0 10px #00d4ff,
+    0 0 24px #00d4ffbb,
+    0 0 40px #00d4ff55;
 }
 
 .at-selection > div {
