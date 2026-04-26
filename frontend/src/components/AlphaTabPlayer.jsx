@@ -720,7 +720,7 @@ export default function AlphaTabPlayer({ fileUrl, songId, onStatsChange }) {
       </div>
     )}
 
-    {/* Track selector */}
+    {/* Track selector — floating fixed panel */}
     {ready && tracks.length > 1 && (
       <div className="at-track-select">
         <label className="at-track-select-label" htmlFor="at-track-select-input">Ścieżka:</label>

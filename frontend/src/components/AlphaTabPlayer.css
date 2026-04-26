@@ -652,12 +652,18 @@
 
 /* ── Track selector ──────────────────────────────────────────── */
 .at-track-select {
+  position: fixed;
+  bottom: 28px;
+  right: 180px;
+  z-index: 900;
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 6px 14px;
-  background: linear-gradient(180deg, #13132e, #0f0f26);
-  border-bottom: 1px solid var(--border);
+  padding: 10px 14px;
+  background: #0f0f26;
+  border: 1px solid #28285a;
+  border-radius: 50px;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.55), 0 0 0 1px #ffffff08;
 }
 
 .at-track-select-label {
