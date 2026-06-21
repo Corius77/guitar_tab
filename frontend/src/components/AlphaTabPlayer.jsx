@@ -9,11 +9,12 @@ const BPM_MAX = 300
 const ALPHATAB_METRONOME_EVENT_TYPE = 242
 
 // ── Web Audio metronome ────────────────────────────────────────────────────
-function playClick(audioCtx, isAccent, volume) {
+// `when` (opcjonalne) — czas audioCtx, na który zaplanować klik (sec).
+function playClick(audioCtx, isAccent, volume, when) {
   if (!audioCtx) return
   if (audioCtx.state === 'suspended') audioCtx.resume()
 
-  const now = audioCtx.currentTime
+  const startAt = when ?? audioCtx.currentTime
   const duration = isAccent ? 0.06 : 0.045
   const freq = isAccent ? 1050 : 580
   const gainPeak = volume * (isAccent ? 1.0 : 0.55)
@@ -22,16 +23,16 @@ function playClick(audioCtx, isAccent, volume) {
   const gain = audioCtx.createGain()
 
   osc.type = isAccent ? 'triangle' : 'sine'
-  osc.frequency.setValueAtTime(freq, now)
-  osc.frequency.exponentialRampToValueAtTime(freq * 0.4, now + duration)
+  osc.frequency.setValueAtTime(freq, startAt)
+  osc.frequency.exponentialRampToValueAtTime(freq * 0.4, startAt + duration)
 
-  gain.gain.setValueAtTime(gainPeak, now)
-  gain.gain.exponentialRampToValueAtTime(0.001, now + duration)
+  gain.gain.setValueAtTime(gainPeak, startAt)
+  gain.gain.exponentialRampToValueAtTime(0.001, startAt + duration)
 
   osc.connect(gain)
   gain.connect(audioCtx.destination)
-  osc.start(now)
-  osc.stop(now + duration + 0.005)
+  osc.start(startAt)
+  osc.stop(startAt + duration + 0.005)
 }
 
 // ── Pamięć ostatnio wybranej ścieżki dla utworu ─────────────────────────────
@@ -96,6 +97,13 @@ export default function AlphaTabPlayer({ fileUrl, songId, onStatsChange }) {
 
   // Aktualnie grany takt (1-indexed) — używany do pętli "od bieżącego taktu"
   const currentBarRef = useRef(0)
+
+  // Standalone metronome — działa gdy utwór NIE jest odtwarzany (gdy gra,
+  // klikanie sterowane jest eventami MIDI z alphaTab, by zachować synchronizację).
+  const standaloneTimerRef = useRef(null)
+  const standaloneNextBeatTimeRef = useRef(0)
+  const standaloneBeatCounterRef = useRef(0)
+  const timeSigNumeratorRef = useRef(4)
 
   // Ścieżki (tracki) pliku GP
   const scoreRef = useRef(null)
@@ -334,6 +342,8 @@ export default function AlphaTabPlayer({ fileUrl, songId, onStatsChange }) {
               bars.push({ index: i, start: score.masterBars[i].start })
             }
           }
+          // Numerator z pierwszego taktu — dla akcentu w trybie standalone metronomu
+          timeSigNumeratorRef.current = score?.masterBars?.[0]?.timeSignatureNumerator || 4
           barPositionsRef.current = bars
           const count = bars.length
           setTotalBars(count)
@@ -602,6 +612,51 @@ export default function AlphaTabPlayer({ fileUrl, songId, onStatsChange }) {
     setMetronomeVolume(v)
     metronomeVolumeRef.current = v
   }
+
+  // Standalone metronome — Web Audio look-ahead scheduler.
+  // Działa tylko gdy utwór NIE jest odtwarzany. Gdy gra, ciszę zapewnia
+  // ten sam useEffect, a klikanie obsługują eventy MIDI z alphaTab (sync).
+  const stopStandaloneMetronome = () => {
+    if (standaloneTimerRef.current) {
+      clearInterval(standaloneTimerRef.current)
+      standaloneTimerRef.current = null
+    }
+  }
+
+  const startStandaloneMetronome = (bpmValue) => {
+    stopStandaloneMetronome()
+    const ctx = getAudioCtx()
+    if (!ctx || !bpmValue || bpmValue <= 0) return
+    const secPerBeat = 60 / bpmValue
+    const numerator = timeSigNumeratorRef.current || 4
+    standaloneBeatCounterRef.current = 0
+    standaloneNextBeatTimeRef.current = ctx.currentTime + 0.08  // mała zwłoka startowa
+
+    const scheduler = () => {
+      const lookAhead = ctx.currentTime + 0.15
+      while (standaloneNextBeatTimeRef.current < lookAhead) {
+        const beat = standaloneBeatCounterRef.current
+        const isAccent = beat % numerator === 0
+        playClick(ctx, isAccent, metronomeVolumeRef.current, standaloneNextBeatTimeRef.current)
+        standaloneNextBeatTimeRef.current += secPerBeat
+        standaloneBeatCounterRef.current++
+      }
+    }
+    scheduler()
+    standaloneTimerRef.current = setInterval(scheduler, 25)
+  }
+
+  // Steruj standalone metronomem na podstawie [metronomeOn, playing, bpm].
+  // Gdy utwór gra → standalone jest WYŁĄCZONY (klikanie z midiEventsPlayed = pełna synchronizacja).
+  // Gdy utwór NIE gra i metronom włączony → standalone leci.
+  useEffect(() => {
+    if (metronomeOn && !playing && bpm) {
+      startStandaloneMetronome(bpm)
+    } else {
+      stopStandaloneMetronome()
+    }
+    return stopStandaloneMetronome
+  }, [metronomeOn, playing, bpm]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Loop ──────────────────────────────────────────────────────────────────
   const clampBar = (val, min, max) => Math.max(min, Math.min(max, val))
