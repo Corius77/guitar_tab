@@ -188,6 +188,19 @@ export default function AlphaTabPlayer({ fileUrl, songId, onStatsChange }) {
       .catch(() => {})
   }
 
+  // Wystartuj sesję ćwiczeń (idempotentne) — wywoływane gdy użytkownik
+  // zaczyna odtwarzanie LUB włącza metronom. Liczy wall-clock od tego momentu.
+  const startSessionIfNeeded = () => {
+    if (sessionStartedRef.current) return
+    if (!user || !songId) return
+    sessionStartedRef.current = true
+    startSession(songId)
+      .then(({ data }) => { sessionIdRef.current = data.id })
+      .catch(() => { sessionStartedRef.current = false })
+  }
+  const startSessionIfNeededRef = useRef(startSessionIfNeeded)
+  startSessionIfNeededRef.current = startSessionIfNeeded
+
   // beforeunload: axios nie dotrze do serwera — używamy fetch z keepalive
   useEffect(() => {
     const handler = () => {
@@ -291,12 +304,7 @@ export default function AlphaTabPlayer({ fileUrl, songId, onStatsChange }) {
           playingRef.current = isPlaying
 
           // Auto-start sesji przy pierwszym Play
-          if (isPlaying && !sessionStartedRef.current && user && songId) {
-            sessionStartedRef.current = true
-            startSession(songId)
-              .then(({ data }) => { sessionIdRef.current = data.id })
-              .catch(() => { sessionStartedRef.current = false })
-          }
+          if (isPlaying) startSessionIfNeededRef.current()
         })
 
         at.playerPositionChanged.on((e) => {
@@ -497,7 +505,10 @@ export default function AlphaTabPlayer({ fileUrl, songId, onStatsChange }) {
         case 'm':
         case 'M': {
           const next = !metronomeOnRef.current
-          if (next) getAudioCtxRef.current()
+          if (next) {
+            getAudioCtxRef.current()
+            startSessionIfNeededRef.current()
+          }
           setMetronomeOn(next)
           metronomeOnRef.current = next
           break
@@ -602,7 +613,11 @@ export default function AlphaTabPlayer({ fileUrl, songId, onStatsChange }) {
   const toggleMetronome = () => {
     const next = !metronomeOn
     // Inicjalizuj AudioContext przy pierwszym włączeniu (wymaga gestu użytkownika)
-    if (next) getAudioCtx()
+    if (next) {
+      getAudioCtx()
+      // Włączenie metronomu też liczy się jako ćwiczenie — wystartuj sesję
+      startSessionIfNeededRef.current()
+    }
     setMetronomeOn(next)
     metronomeOnRef.current = next
   }

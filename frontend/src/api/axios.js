@@ -12,7 +12,11 @@ api.interceptors.request.use((config) => {
   return config
 })
 
-// On 401 try to refresh; on failure redirect to login
+// On 401 try to refresh; on failure redirect to login.
+// Współbieżne żądania współdzielą jeden refresh w locie (refreshPromise),
+// żeby nie wystrzelić wielu requestów refresh równolegle.
+let refreshPromise = null
+
 api.interceptors.response.use(
   (res) => res,
   async (err) => {
@@ -22,8 +26,14 @@ api.interceptors.response.use(
       const refresh = localStorage.getItem('refresh')
       if (refresh) {
         try {
-          const { data } = await axios.post('/api/auth/token/refresh/', { refresh })
+          if (!refreshPromise) {
+            refreshPromise = axios.post('/api/auth/token/refresh/', { refresh })
+              .finally(() => { refreshPromise = null })
+          }
+          const { data } = await refreshPromise
           localStorage.setItem('access', data.access)
+          // Jeśli backend ma włączoną rotację tokenów refresh, zapisz nowy.
+          if (data.refresh) localStorage.setItem('refresh', data.refresh)
           original.headers.Authorization = `Bearer ${data.access}`
           return api(original)
         } catch {
