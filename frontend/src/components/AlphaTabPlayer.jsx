@@ -34,6 +34,36 @@ function playClick(audioCtx, isAccent, volume) {
   osc.stop(now + duration + 0.005)
 }
 
+// ── Pamięć ostatnio wybranej ścieżki dla utworu ─────────────────────────────
+// Zapis: number = indeks ścieżki, null = 'all'. Brak klucza → użyj domyślnej.
+const TRACK_STORAGE_KEY = 'guitarTab.selectedTrackBySong'
+
+// Zwraca { value: number | null } gdy istnieje wpis, albo null gdy brak.
+function loadSavedTrackIndex(songId) {
+  try {
+    const raw = localStorage.getItem(TRACK_STORAGE_KEY)
+    if (!raw) return null
+    const map = JSON.parse(raw)
+    const key = String(songId)
+    if (!(key in map)) return null
+    const v = map[key]
+    if (v === null) return { value: null }
+    if (typeof v === 'number' && v >= 0) return { value: v }
+    return null
+  } catch {
+    return null
+  }
+}
+
+function saveTrackIndex(songId, idx) {
+  try {
+    const raw = localStorage.getItem(TRACK_STORAGE_KEY)
+    const map = raw ? JSON.parse(raw) : {}
+    map[String(songId)] = idx
+    localStorage.setItem(TRACK_STORAGE_KEY, JSON.stringify(map))
+  } catch {}
+}
+
 // ── Component ──────────────────────────────────────────────────────────────
 export default function AlphaTabPlayer({ fileUrl, songId, onStatsChange }) {
   const containerRef = useRef(null)
@@ -63,6 +93,9 @@ export default function AlphaTabPlayer({ fileUrl, songId, onStatsChange }) {
 
   // Drag-to-select na tabulaturze
   const dragStartBarRef = useRef(null)
+
+  // Aktualnie grany takt (1-indexed) — używany do pętli "od bieżącego taktu"
+  const currentBarRef = useRef(0)
 
   // Ścieżki (tracki) pliku GP
   const scoreRef = useRef(null)
@@ -204,6 +237,7 @@ export default function AlphaTabPlayer({ fileUrl, songId, onStatsChange }) {
         loopCountsRef.current = {}
         lastPositionRef.current = 0
         playingRef.current = false
+        currentBarRef.current = 0
         setTracks([])
         setSelectedTrackIndex(null)
         scoreRef.current = null
@@ -262,6 +296,18 @@ export default function AlphaTabPlayer({ fileUrl, songId, onStatsChange }) {
           setCurrentTime(e.currentTime)
           setEndTime(e.endTime)
 
+          // Aktualizuj aktualnie grany takt na podstawie ticka
+          const tick = e.currentTick
+          if (tick != null) {
+            const bars = barPositionsRef.current
+            for (let i = bars.length - 1; i >= 0; i--) {
+              if (tick >= bars[i].start) {
+                currentBarRef.current = i + 1
+                break
+              }
+            }
+          }
+
           // Wykryj przewinięcie pętli (currentTime skacze wstecz)
           const curr = e.currentTime
           const prev = lastPositionRef.current
@@ -294,12 +340,21 @@ export default function AlphaTabPlayer({ fileUrl, songId, onStatsChange }) {
           setLoopStart(1)
           setLoopEnd(count)
 
-          // Zapisz ścieżki; przy wielu ścieżkach renderuj tylko pierwszą
+          // Zapisz ścieżki; przy wielu ścieżkach renderuj zapamiętaną lub pierwszą
           scoreRef.current = score
           if (score?.tracks?.length > 1) {
             setTracks([...score.tracks])
-            setSelectedTrackIndex(0)
-            at.renderTracks([score.tracks[0]])
+            const saved = songId != null ? loadSavedTrackIndex(songId) : null
+            if (saved && saved.value === null) {
+              setSelectedTrackIndex(null)
+              at.renderTracks(score.tracks)
+            } else {
+              const idx = saved && saved.value >= 0 && saved.value < score.tracks.length
+                ? saved.value
+                : 0
+              setSelectedTrackIndex(idx)
+              at.renderTracks([score.tracks[idx]])
+            }
           } else {
             setTracks(score?.tracks ? [...score.tracks] : [])
             setSelectedTrackIndex(null)
@@ -517,10 +572,12 @@ export default function AlphaTabPlayer({ fileUrl, songId, onStatsChange }) {
     if (val === 'all') {
       setSelectedTrackIndex(null)
       at.renderTracks(score.tracks)
+      if (songId != null) saveTrackIndex(songId, null)
     } else {
       const idx = parseInt(val, 10)
       setSelectedTrackIndex(idx)
       at.renderTracks([score.tracks[idx]])
+      if (songId != null) saveTrackIndex(songId, idx)
     }
   }
 
@@ -582,7 +639,20 @@ export default function AlphaTabPlayer({ fileUrl, songId, onStatsChange }) {
   const toggleLoop = () => {
     if (!apiRef.current) return
     if (!loopOnRef.current) {
-      applyLoopRange(loopStartRef.current, loopEndRef.current)
+      let start = loopStartRef.current
+      let end = loopEndRef.current
+      // Jeśli gra i aktualnie grany takt jest poza wybranym zakresem,
+      // zapętl bieżący takt zamiast wcześniej klikniętego.
+      const curr = currentBarRef.current
+      if (playingRef.current && curr > 0 && (curr < start || curr > end)) {
+        start = curr
+        end = curr
+        setLoopStart(curr)
+        setLoopEnd(curr)
+        loopStartRef.current = curr
+        loopEndRef.current = curr
+      }
+      applyLoopRange(start, end)
       setLoopOn(true)
     } else {
       apiRef.current.isLooping = false
