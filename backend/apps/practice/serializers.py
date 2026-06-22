@@ -1,6 +1,6 @@
 from rest_framework import serializers
 
-from .models import LoopEvent, PracticeSession, SavedLoop
+from .models import LoopEvent, PracticeSession, Recording, SavedLoop
 
 
 class LoopEventSerializer(serializers.ModelSerializer):
@@ -28,3 +28,26 @@ class SavedLoopSerializer(serializers.ModelSerializer):
         model = SavedLoop
         fields = ['id', 'name', 'measure_start', 'measure_end', 'created_at']
         read_only_fields = ['id', 'created_at']
+
+
+class RecordingSerializer(serializers.ModelSerializer):
+    file_url = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Recording
+        fields = [
+            'id', 'file', 'file_url', 'format', 'mime_type',
+            'duration_seconds', 'size_bytes', 'bpm_percent',
+            'name', 'created_at',
+        ]
+        read_only_fields = ['id', 'file_url', 'created_at']
+        extra_kwargs = {
+            'file': {'write_only': True},
+        }
+
+    def get_file_url(self, obj):
+        if not obj.file:
+            return None
+        request = self.context.get('request')
+        url = obj.file.url
+        return request.build_absolute_uri(url) if request else url

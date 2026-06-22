@@ -47,3 +47,33 @@ class SavedLoop(models.Model):
 
     def __str__(self):
         return f'{self.name} ({self.measure_start}–{self.measure_end})'
+
+
+def recording_upload_path(instance, filename):
+    return f'recordings/{instance.user_id}/{instance.song_id}/{filename}'
+
+
+class Recording(models.Model):
+    FORMAT_WEBM = 'webm'
+    FORMAT_WAV = 'wav'
+    FORMAT_CHOICES = [
+        (FORMAT_WEBM, 'WebM/Opus'),
+        (FORMAT_WAV, 'WAV'),
+    ]
+
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='recordings')
+    song = models.ForeignKey(Song, on_delete=models.CASCADE, related_name='recordings')
+    file = models.FileField(upload_to=recording_upload_path)
+    format = models.CharField(max_length=8, choices=FORMAT_CHOICES, default=FORMAT_WEBM)
+    mime_type = models.CharField(max_length=64, blank=True)
+    duration_seconds = models.FloatField(null=True, blank=True)
+    size_bytes = models.PositiveIntegerField(null=True, blank=True)
+    bpm_percent = models.FloatField(null=True, blank=True)
+    name = models.CharField(max_length=100, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f'{self.user} – {self.song} ({self.created_at:%Y-%m-%d %H:%M})'

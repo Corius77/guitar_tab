@@ -1,6 +1,6 @@
 from django.contrib import admin
 
-from .models import LoopEvent, PracticeSession
+from .models import LoopEvent, PracticeSession, Recording
 
 
 class LoopEventInline(admin.TabularInline):
@@ -15,3 +15,10 @@ class PracticeSessionAdmin(admin.ModelAdmin):
     list_filter = ['user', 'song']
     inlines = [LoopEventInline]
     readonly_fields = ['started_at']
+
+
+@admin.register(Recording)
+class RecordingAdmin(admin.ModelAdmin):
+    list_display = ['user', 'song', 'format', 'duration_seconds', 'size_bytes', 'created_at']
+    list_filter = ['user', 'song', 'format']
+    readonly_fields = ['created_at']

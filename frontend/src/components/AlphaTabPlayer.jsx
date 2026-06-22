@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import './AlphaTabPlayer.css'
 import KeyboardShortcutsModal from './KeyboardShortcutsModal'
+import RecordingPanel from './RecordingPanel'
 import { useAuth } from '../context/AuthContext'
 import { startSession, endSession, getSavedLoops, createSavedLoop, deleteSavedLoop } from '../api/practice'
 
@@ -1003,6 +1004,18 @@ export default function AlphaTabPlayer({ fileUrl, songId, onStatsChange }) {
             </label>
           )}
         </div>
+
+        {/* Nagrywanie */}
+        <RecordingPanel
+          songId={songId}
+          user={user}
+          bpmPercent={originalBpmRef.current && bpm
+            ? Math.round((bpm / originalBpmRef.current) * 100)
+            : null}
+          onStartPlayback={() => { if (!playingRef.current) apiRef.current?.playPause() }}
+          onStopPlayback={() => { if (playingRef.current) apiRef.current?.pause() }}
+          disabled={!ready}
+        />
 
         {/* Skróty klawiszowe */}
         <button

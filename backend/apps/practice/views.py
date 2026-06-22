@@ -8,8 +8,15 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from .models import LoopEvent, PracticeSession, SavedLoop
-from .serializers import EndSessionSerializer, SavedLoopSerializer, StartSessionSerializer
+from rest_framework.parsers import FormParser, MultiPartParser
+
+from .models import LoopEvent, PracticeSession, Recording, SavedLoop
+from .serializers import (
+    EndSessionSerializer,
+    RecordingSerializer,
+    SavedLoopSerializer,
+    StartSessionSerializer,
+)
 
 
 class StartSessionView(CreateAPIView):
@@ -196,3 +203,41 @@ class DashboardView(APIView):
             'daily_seconds': daily_seconds,
             'songs': songs,
         })
+
+
+class RecordingListView(APIView):
+    """GET/POST /api/practice/songs/{song_id}/recordings/ — lista i upload nagrań."""
+    permission_classes = [IsAuthenticated]
+    parser_classes = [MultiPartParser, FormParser]
+
+    def get(self, request, song_id):
+        recordings = Recording.objects.filter(user=request.user, song_id=song_id)
+        ser = RecordingSerializer(recordings, many=True, context={'request': request})
+        return Response(ser.data)
+
+    def post(self, request, song_id):
+        ser = RecordingSerializer(data=request.data, context={'request': request})
+        ser.is_valid(raise_exception=True)
+        recording = ser.save(user=request.user, song_id=song_id)
+        # Auto-uzupełnij metadane jeżeli klient ich nie przysłał
+        if recording.file and not recording.size_bytes:
+            recording.size_bytes = recording.file.size
+            recording.save(update_fields=['size_bytes'])
+        out = RecordingSerializer(recording, context={'request': request})
+        return Response(out.data, status=status.HTTP_201_CREATED)
+
+
+class RecordingDetailView(APIView):
+    """DELETE /api/practice/recordings/{pk}/ — usuwa nagranie."""
+    permission_classes = [IsAuthenticated]
+
+    def delete(self, request, pk):
+        try:
+            rec = Recording.objects.get(pk=pk, user=request.user)
+        except Recording.DoesNotExist:
+            return Response({'detail': 'Not found.'}, status=status.HTTP_404_NOT_FOUND)
+        # Usuń plik z dysku, potem rekord z DB
+        if rec.file:
+            rec.file.delete(save=False)
+        rec.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
