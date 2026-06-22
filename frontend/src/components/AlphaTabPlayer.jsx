@@ -857,152 +857,157 @@ export default function AlphaTabPlayer({ fileUrl, songId, onStatsChange }) {
       </div>
     )}
 
-    {/* Track selector — floating fixed panel */}
-    {ready && tracks.length > 1 && (
-      <div className="at-track-select">
-        <label className="at-track-select-label" htmlFor="at-track-select-input">Ścieżka:</label>
-        <select
-          id="at-track-select-input"
-          className="at-track-select-dropdown"
-          value={selectedTrackIndex ?? 'all'}
-          onChange={handleTrackChange}
-        >
-          <option value="all">Wszystkie ({tracks.length})</option>
-          {tracks.map((track, i) => (
-            <option key={i} value={i}>
-              {track.name || `Ścieżka ${i + 1}`}
-            </option>
-          ))}
-        </select>
-      </div>
-    )}
-
-    {/* BPM — floating fixed panel */}
+    {/* Dolny pasek — tempo, pętla i ścieżka w jednym */}
     {ready && (
-      <div className="at-bpm-panel">
-        <span className="at-bpm-panel-label">BPM</span>
-        <button className="at-bpm-step" onClick={() => stepBpm(-5)} disabled={(bpm ?? 0) <= BPM_MIN} title="-5 BPM (-)">−</button>
-        <div className="at-bpm-field">
-          <input
-            className="at-bpm-input" type="number" min={BPM_MIN} max={BPM_MAX}
-            value={bpmInput} onChange={handleBpmInput} onBlur={handleBpmCommit}
-            onKeyDown={handleBpmKey} title="Tempo (BPM)"
-          />
-        </div>
-        <button className="at-bpm-step" onClick={() => stepBpm(+5)} disabled={(bpm ?? 0) >= BPM_MAX} title="+5 BPM (+)">+</button>
-        {!isOriginalBpm && (
-          <button className="at-bpm-reset" onClick={resetBpm} title={`Reset do ${originalBpmRef.current} BPM`}>↺</button>
-        )}
-        <input
-          className="at-bpm-panel-slider" type="range" min={BPM_MIN} max={BPM_MAX} step="1"
-          value={bpm ?? originalBpmRef.current ?? 120} onChange={handleBpmSlider}
-          title="Suwak tempa"
-        />
-      </div>
-    )}
+      <div className="at-bottom-bar">
 
-    {/* Loop — floating fixed panel */}
-    {ready && totalBars > 0 && (
-      <div className="at-loop-row">
-        <span className="at-loop-label">Pętla:</span>
-
-        <div className="at-loop-range-inputs">
-          <span className="at-loop-range-hint">takt</span>
-          <input
-            className="at-loop-bar-input"
-            type="number"
-            min={1}
-            max={totalBars}
-            value={loopStart}
-            onChange={handleLoopStartChange}
-            disabled={loopOn}
-            title="Pierwszy takt pętli"
-          />
-          <span className="at-loop-dash">–</span>
-          <input
-            className="at-loop-bar-input"
-            type="number"
-            min={1}
-            max={totalBars}
-            value={loopEnd}
-            onChange={handleLoopEndChange}
-            disabled={loopOn}
-            title="Ostatni takt pętli"
-          />
-          <span className="at-loop-range-hint">/ {totalBars}</span>
-        </div>
-
-        <button
-          className={`at-loop-toggle ${loopOn ? 'at-loop-toggle--on' : ''}`}
-          onClick={toggleLoop}
-          disabled={!loopValid}
-          title={loopOn ? 'Wyłącz pętlę' : `Zapętl takty ${loopStart}–${loopEnd}`}
-        >
-          🔁
-        </button>
-
-        <button
-          className="at-loop-clear"
-          onClick={clearLoop}
-          title="Wyczyść pętlę"
-        >✕</button>
-
-        {user && (
+        {/* Transport — play, stop, głośność, metronom */}
+        <div className="at-transport at-bb-group">
           <button
-            className={`at-loop-bookmarks ${showSavedLoops ? 'at-loop-bookmarks--open' : ''}`}
-            onClick={() => setShowSavedLoops(prev => !prev)}
-            title="Zapisane pętle"
-          >🔖{savedLoops.length > 0 && <span className="at-loop-bookmarks-count">{savedLoops.length}</span>}</button>
+            className={`at-btn ${playing ? 'at-btn-pause' : 'at-btn-play'}`}
+            onClick={() => apiRef.current?.playPause()}
+            disabled={!ready}
+            title={playing ? 'Pause' : 'Play'}
+          >{playing ? '⏸' : '▶'}</button>
+
+          <button
+            className="at-btn"
+            onClick={() => apiRef.current?.stop()}
+            disabled={!ready}
+            title="Stop"
+          >⏹</button>
+
+          <label className="at-control-label">
+            <span>Vol</span>
+            <input type="range" min="0" max="1" step="0.05" value={masterVolume} onChange={handleVolume} />
+          </label>
+
+          <div className="at-metronome-group">
+            <button
+              className={`at-btn at-btn-metro ${metronomeOn ? 'at-btn-metro--on' : ''}`}
+              onClick={toggleMetronome}
+              disabled={!ready}
+              title={metronomeOn ? 'Metronome ON' : 'Metronome OFF'}
+            >🥁</button>
+            {metronomeOn && (
+              <label className="at-control-label at-metro-vol-label">
+                <span className="at-metro-vol-value">{Math.round(metronomeVolume * 100)}%</span>
+                <input
+                  className="at-metro-vol"
+                  type="range" min="0" max="1" step="0.05"
+                  value={metronomeVolume} onChange={handleMetronomeVolume}
+                />
+              </label>
+            )}
+          </div>
+        </div>
+
+        {/* BPM */}
+        <div className="at-bpm-panel at-bb-group">
+          <span className="at-bpm-panel-label">BPM</span>
+          <button className="at-bpm-step" onClick={() => stepBpm(-5)} disabled={(bpm ?? 0) <= BPM_MIN} title="-5 BPM (-)">−</button>
+          <div className="at-bpm-field">
+            <input
+              className="at-bpm-input" type="number" min={BPM_MIN} max={BPM_MAX}
+              value={bpmInput} onChange={handleBpmInput} onBlur={handleBpmCommit}
+              onKeyDown={handleBpmKey} title="Tempo (BPM)"
+            />
+          </div>
+          <button className="at-bpm-step" onClick={() => stepBpm(+5)} disabled={(bpm ?? 0) >= BPM_MAX} title="+5 BPM (+)">+</button>
+          {!isOriginalBpm && (
+            <button className="at-bpm-reset" onClick={resetBpm} title={`Reset do ${originalBpmRef.current} BPM`}>↺</button>
+          )}
+          <input
+            className="at-bpm-panel-slider" type="range" min={BPM_MIN} max={BPM_MAX} step="1"
+            value={bpm ?? originalBpmRef.current ?? 120} onChange={handleBpmSlider}
+            title="Suwak tempa"
+          />
+        </div>
+
+        {/* Pętla */}
+        {totalBars > 0 && (
+          <div className="at-loop-row at-bb-group">
+            <span className="at-loop-label">Pętla:</span>
+
+            <div className="at-loop-range-inputs">
+              <span className="at-loop-range-hint">takt</span>
+              <input
+                className="at-loop-bar-input"
+                type="number"
+                min={1}
+                max={totalBars}
+                value={loopStart}
+                onChange={handleLoopStartChange}
+                disabled={loopOn}
+                title="Pierwszy takt pętli"
+              />
+              <span className="at-loop-dash">–</span>
+              <input
+                className="at-loop-bar-input"
+                type="number"
+                min={1}
+                max={totalBars}
+                value={loopEnd}
+                onChange={handleLoopEndChange}
+                disabled={loopOn}
+                title="Ostatni takt pętli"
+              />
+              <span className="at-loop-range-hint">/ {totalBars}</span>
+            </div>
+
+            <button
+              className={`at-loop-toggle ${loopOn ? 'at-loop-toggle--on' : ''}`}
+              onClick={toggleLoop}
+              disabled={!loopValid}
+              title={loopOn ? 'Wyłącz pętlę' : `Zapętl takty ${loopStart}–${loopEnd}`}
+            >
+              🔁
+            </button>
+
+            <button
+              className="at-loop-clear"
+              onClick={clearLoop}
+              title="Wyczyść pętlę"
+            >✕</button>
+
+            {user && (
+              <button
+                className={`at-loop-bookmarks ${showSavedLoops ? 'at-loop-bookmarks--open' : ''}`}
+                onClick={() => setShowSavedLoops(prev => !prev)}
+                title="Zapisane pętle"
+              >🔖{savedLoops.length > 0 && <span className="at-loop-bookmarks-count">{savedLoops.length}</span>}</button>
+            )}
+          </div>
         )}
+
       </div>
     )}
 
     <div className="at-wrap">
       <div className="at-controls">
-        {/* Playback */}
-        <button
-          className={`at-btn ${playing ? 'at-btn-pause' : 'at-btn-play'}`}
-          onClick={() => apiRef.current?.playPause()}
-          disabled={!ready}
-          title={playing ? 'Pause' : 'Play'}
-        >{playing ? '⏸' : '▶'}</button>
-
-        <button
-          className="at-btn"
-          onClick={() => apiRef.current?.stop()}
-          disabled={!ready}
-          title="Stop"
-        >⏹</button>
+        {/* Ścieżka — przeniesione tu z dolnego paska (rzadziej używane) */}
+        {ready && tracks.length > 1 && (
+          <div className="at-track-select">
+            <label className="at-track-select-label" htmlFor="at-track-select-input">Ścieżka:</label>
+            <select
+              id="at-track-select-input"
+              className="at-track-select-dropdown"
+              value={selectedTrackIndex ?? 'all'}
+              onChange={handleTrackChange}
+            >
+              <option value="all">Wszystkie ({tracks.length})</option>
+              {tracks.map((track, i) => (
+                <option key={i} value={i}>
+                  {track.name || `Ścieżka ${i + 1}`}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
 
         {/* Progress */}
         <div className="at-progress-bar">
           <div className="at-progress-fill" style={{ width: `${progress}%` }} />
-        </div>
-
-        {/* Volume */}
-        <label className="at-control-label">
-          <span>Vol</span>
-          <input type="range" min="0" max="1" step="0.05" value={masterVolume} onChange={handleVolume} />
-        </label>
-
-        {/* Metronome */}
-        <div className="at-metronome-group">
-          <button
-            className={`at-btn at-btn-metro ${metronomeOn ? 'at-btn-metro--on' : ''}`}
-            onClick={toggleMetronome}
-            disabled={!ready}
-            title={metronomeOn ? 'Metronome ON' : 'Metronome OFF'}
-          >🥁</button>
-          {metronomeOn && (
-            <label className="at-control-label at-metro-vol-label">
-              <span className="at-metro-vol-value">{Math.round(metronomeVolume * 100)}%</span>
-              <input
-                className="at-metro-vol"
-                type="range" min="0" max="1" step="0.05"
-                value={metronomeVolume} onChange={handleMetronomeVolume}
-              />
-            </label>
-          )}
         </div>
 
         {/* Nagrywanie */}

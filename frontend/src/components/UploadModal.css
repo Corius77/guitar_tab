@@ -9,12 +9,13 @@
 }
 
 .modal {
-  background: #1a1a2e;
-  border: 1px solid #2a2a4a;
+  background: #1d1712;
+  border: 1px solid #2a2419;
   border-radius: 12px;
   width: min(560px, 95vw);
   max-height: 90vh;
   overflow-y: auto;
+  box-shadow: 0 32px 80px #000000aa, inset 0 0 70px #00000033;
 }
 
 .modal-header {
@@ -24,13 +25,13 @@
   padding: 20px 24px 0;
 }
 
-.modal-header h2 { font-size: 18px; font-weight: 700; color: #e0e0f0; margin: 0; }
+.modal-header h2 { font-size: 18px; font-weight: 700; color: #e7ddc9; margin: 0; }
 
 .modal-close {
-  background: none; border: none; color: #606080;
+  background: none; border: none; color: #6b5d49;
   font-size: 18px; cursor: pointer; padding: 4px;
 }
-.modal-close:hover { color: #e94560; }
+.modal-close:hover { color: #b86a3e; }
 
 .modal-body {
   display: flex;
@@ -40,11 +41,11 @@
 }
 
 .drop-zone {
-  border: 2px dashed #2a2a4a;
+  border: 2px dashed #2a2419;
   border-radius: 8px;
   padding: 32px;
   text-align: center;
-  color: #606080;
+  color: #6b5d49;
   cursor: pointer;
   transition: border-color 0.15s, background 0.15s;
   display: flex;
@@ -54,12 +55,12 @@
   font-size: 14px;
 }
 .drop-zone:hover, .drop-zone.has-file {
-  border-color: #e94560;
-  background: #e9456008;
-  color: #e0e0f0;
+  border-color: #b86a3e;
+  background: #b86a3e08;
+  color: #e7ddc9;
 }
 .drop-icon { font-size: 32px; }
-.drop-file-name { color: #e94560; font-weight: 600; }
+.drop-file-name { color: #b86a3e; font-weight: 600; }
 
 .form-row {
   display: grid;
@@ -72,26 +73,26 @@ label {
   flex-direction: column;
   gap: 6px;
   font-size: 13px;
-  color: #a0a0c0;
+  color: #9c8f79;
 }
 
 input, select, textarea {
-  background: #0f0f23;
-  border: 1px solid #2a2a4a;
+  background: #16120d;
+  border: 1px solid #2a2419;
   border-radius: 6px;
   padding: 8px 12px;
-  color: #e0e0f0;
+  color: #e7ddc9;
   font-size: 14px;
   outline: none;
   font-family: inherit;
 }
-input:focus, select:focus, textarea:focus { border-color: #e94560; }
+input:focus, select:focus, textarea:focus { border-color: #b86a3e; }
 textarea { resize: vertical; }
 
 .form-error {
-  color: #e94560;
+  color: #b86a3e;
   font-size: 13px;
-  background: #e9456015;
+  background: #b86a3e15;
   padding: 10px 14px;
   border-radius: 6px;
 }

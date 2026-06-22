@@ -4,7 +4,7 @@
   justify-content: space-between;
   padding: 0 28px;
   height: 58px;
-  background: rgba(10, 10, 28, 0.82);
+  background: rgba(16, 13, 10, 0.82);
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
   border-bottom: 1px solid rgba(255, 255, 255, 0.06);
@@ -23,14 +23,16 @@
 
 .brand-icon {
   font-size: 22px;
-  filter: drop-shadow(0 0 6px #e9456060);
+  filter: drop-shadow(0 0 6px #b86a3e60);
 }
 
 .brand-name {
-  font-size: 19px;
-  font-weight: 800;
-  letter-spacing: -0.6px;
-  background: linear-gradient(135deg, #ff6b80 0%, #e94560 50%, #c73050 100%);
+  font-family: var(--font-serif);
+  font-size: 23px;
+  font-weight: 600;
+  font-style: italic;
+  letter-spacing: 0.3px;
+  background: linear-gradient(135deg, #d99a6a 0%, #b86a3e 55%, #8f4a28 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;

@@ -86,12 +86,12 @@
 .mh-tooltip {
   position: fixed;
   transform: translate(12px, -100%);
-  background: #1a1a3a;
-  border: 1px solid #3a3a60;
+  background: #201912;
+  border: 1px solid #443827;
   border-radius: 6px;
   padding: 4px 8px;
   font-size: 11px;
-  color: #c8c8e8;
+  color: #cabfa8;
   white-space: nowrap;
   pointer-events: none;
   z-index: 9999;
@@ -117,10 +117,9 @@
   border-radius: 3px;
   background: linear-gradient(
     90deg,
-    rgb(30, 80, 200),
-    rgb(130, 160, 40),
-    rgb(230, 65, 0),
-    rgb(233, 69, 96)
+    rgb(95, 90, 55),
+    rgb(210, 150, 60),
+    rgb(200, 50, 20)
   );
-  opacity: 0.7;
+  opacity: 0.85;
 }

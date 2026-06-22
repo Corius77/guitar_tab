@@ -43,10 +43,10 @@ const MONTH_NAMES = ['sty', 'lut', 'mar', 'kwi', 'maj', 'cze', 'lip', 'sie', 'wr
 function calCellColor(seconds, maxSeconds) {
   if (!seconds) return null
   const t = Math.min(seconds / maxSeconds, 1)
-  // ciemny niebieski → nasycony akcent
-  const r = Math.round(40  + t * 193)
-  const g = Math.round(40  + t * 29)
-  const b = Math.round(90  + t * 6)
+  // przygaszony brąz → rdzawy akcent
+  const r = Math.round(45 + t * 139)
+  const g = Math.round(38 + t * 68)
+  const b = Math.round(30 + t * 32)
   return `rgb(${r},${g},${b})`
 }
 

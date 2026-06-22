@@ -17,8 +17,8 @@
   font-family: inherit;
 }
 .at-rec-toggle:disabled { opacity: 0.35; cursor: default; pointer-events: none; }
-.at-rec-toggle:not(:disabled):hover { background: #252550; border-color: var(--border-2); color: var(--text); }
-.at-rec-toggle--open { background: #2a2a55; border-color: var(--border-2); color: var(--text); }
+.at-rec-toggle:not(:disabled):hover { background: #34291f; border-color: var(--border-2); color: var(--text); }
+.at-rec-toggle--open { background: #382c20; border-color: var(--border-2); color: var(--text); }
 .at-rec-toggle--recording {
   background: #5a1f1f;
   border-color: #ff4d4d;
@@ -34,7 +34,7 @@
   position: absolute;
   top: -4px;
   right: -4px;
-  background: var(--accent, #6366f1);
+  background: var(--accent, #b86a3e);
   color: #fff;
   font-size: 10px;
   font-weight: 600;
@@ -54,16 +54,16 @@
   right: 20px;
   width: 400px;
   max-height: calc(100vh - 120px);
-  background: var(--surface, #1a1a30);
-  border: 1px solid var(--border, #2a2a4a);
+  background: var(--surface, #1d1712);
+  border: 1px solid var(--border, #2a2419);
   border-radius: 12px;
-  box-shadow: 0 12px 48px #000000aa;
+  box-shadow: 0 12px 48px #000000aa, inset 0 0 70px #00000033;
   padding: 14px;
   display: flex;
   flex-direction: column;
   gap: 10px;
   z-index: 100;
-  color: var(--text, #e8e8f0);
+  color: var(--text, #e7ddc9);
   overflow: hidden;
 }
 
@@ -81,7 +81,7 @@
   padding: 4px 8px;
   border-radius: 6px;
 }
-.at-rec-close:hover { background: var(--surface-3, #252548); color: var(--text); }
+.at-rec-close:hover { background: var(--surface-3, #2f261c); color: var(--text); }
 
 .at-rec-row {
   display: flex;
@@ -95,9 +95,9 @@
   color: var(--text-2, #888);
 }
 .at-rec-select {
-  background: var(--surface-3, #252548);
-  border: 1px solid var(--border, #2a2a4a);
-  color: var(--text, #e8e8f0);
+  background: var(--surface-3, #2f261c);
+  border: 1px solid var(--border, #2a2419);
+  color: var(--text, #e7ddc9);
   padding: 6px 8px;
   border-radius: 6px;
   font-family: inherit;
@@ -121,9 +121,9 @@
 
 .at-rec-actions { flex-direction: row; align-items: center; gap: 12px; }
 .at-rec-btn {
-  background: var(--surface-3, #252548);
-  border: 1px solid var(--border, #2a2a4a);
-  color: var(--text, #e8e8f0);
+  background: var(--surface-3, #2f261c);
+  border: 1px solid var(--border, #2a2419);
+  color: var(--text, #e7ddc9);
   padding: 8px 18px;
   border-radius: 8px;
   font-family: inherit;
@@ -140,11 +140,11 @@
 }
 .at-rec-btn--start:hover { background: #5a2525; border-color: #ff5050; }
 .at-rec-btn--stop {
-  background: #2a2a55;
-  border-color: #6366f1;
+  background: #382c20;
+  border-color: #b86a3e;
   color: #fff;
 }
-.at-rec-btn--stop:hover { background: #353570; }
+.at-rec-btn--stop:hover { background: #423526; }
 .at-rec-elapsed {
   color: #ff5050;
   font-weight: 600;
@@ -164,7 +164,7 @@
 }
 
 .at-rec-list-wrap {
-  border-top: 1px solid var(--border, #2a2a4a);
+  border-top: 1px solid var(--border, #2a2419);
   padding-top: 10px;
   overflow-y: auto;
   display: flex;
@@ -193,8 +193,8 @@
   gap: 8px;
 }
 .at-rec-item {
-  background: var(--surface-3, #252548);
-  border: 1px solid var(--border, #2a2a4a);
+  background: var(--surface-3, #2f261c);
+  border: 1px solid var(--border, #2a2419);
   border-radius: 8px;
   padding: 8px;
   display: flex;
@@ -207,7 +207,7 @@
   font-size: 11px;
   gap: 1px;
 }
-.at-rec-item-date { color: var(--text, #e8e8f0); font-weight: 500; }
+.at-rec-item-date { color: var(--text, #e7ddc9); font-weight: 500; }
 .at-rec-item-tags { color: var(--text-2, #888); }
 .at-rec-item-audio { width: 100%; height: 32px; }
 .at-rec-item-actions {
@@ -217,7 +217,7 @@
 }
 .at-rec-item-link, .at-rec-item-del {
   background: transparent;
-  border: 1px solid var(--border, #2a2a4a);
+  border: 1px solid var(--border, #2a2419);
   color: var(--text-2, #aaa);
   text-decoration: none;
   padding: 2px 8px;
@@ -226,5 +226,5 @@
   cursor: pointer;
   font-family: inherit;
 }
-.at-rec-item-link:hover { background: var(--surface, #2a2a4a); color: var(--text); }
+.at-rec-item-link:hover { background: var(--surface, #2a2419); color: var(--text); }
 .at-rec-item-del:hover { background: #4a1f1f; color: #ff5050; border-color: #ff5050; }

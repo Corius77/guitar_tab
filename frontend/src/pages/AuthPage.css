@@ -5,7 +5,7 @@
   justify-content: center;
   padding: 20px;
   /* Subtle radial glow behind the card */
-  background-image: radial-gradient(ellipse 60% 50% at 50% 50%, #1a1a4820, transparent);
+  background-image: radial-gradient(ellipse 60% 50% at 50% 50%, #2e241820, transparent);
 }
 
 .auth-card {
@@ -17,7 +17,8 @@
   box-shadow:
     0 0 0 1px #ffffff06,
     0 24px 64px #00000060,
-    0 0 80px #e9456012;
+    0 0 80px #b86a3e12,
+    inset 0 0 70px #00000033;
   position: relative;
   overflow: hidden;
 }
@@ -38,7 +39,7 @@
   font-size: 42px;
   text-align: center;
   margin-bottom: 8px;
-  filter: drop-shadow(0 0 12px #e9456060);
+  filter: drop-shadow(0 0 12px #b86a3e60);
 }
 
 .auth-card h1 {
@@ -59,7 +60,7 @@
 .auth-error {
   color: var(--accent);
   background: var(--accent-dim);
-  border: 1px solid #e9456040;
+  border: 1px solid #b86a3e40;
   padding: 10px 14px;
   border-radius: 8px;
   font-size: 13px;

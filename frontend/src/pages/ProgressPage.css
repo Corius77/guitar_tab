@@ -220,7 +220,7 @@
   position: absolute;
   left: 0; top: 0; bottom: 0;
   width: 3px;
-  background: linear-gradient(180deg, var(--accent), #c73050);
+  background: linear-gradient(180deg, var(--accent), #8f4a28);
   opacity: 0;
   transition: opacity 0.2s;
 }
@@ -262,8 +262,8 @@
   font-size: 12px;
   font-weight: 700;
   color: var(--green);
-  background: #1a2e1a;
-  border: 1px solid #2a4a2a;
+  background: #23250f;
+  border: 1px solid #2f3318;
   border-radius: 10px;
   padding: 2px 8px;
 }

@@ -4,20 +4,20 @@ import './MeasureHeatmap.css'
 const GAP = 2
 const RADIUS = 2
 
-/** Mapuje intensywność 0–1 na kolor (zimny → ciepły → gorący). */
+/** Mapuje intensywność 0–1 na kolor sepiowej skali (przygaszona oliwka → bursztyn → gorąca rdza). */
 function heatColor(intensity) {
   if (intensity <= 0) return null
   let r, g, b
   if (intensity < 0.5) {
     const t = intensity * 2
-    r = Math.round(30  + t * 200)
-    g = Math.round(80  + t * 80)
-    b = Math.round(200 - t * 160)
+    r = Math.round(95  + t * 115)
+    g = Math.round(90  + t * 60)
+    b = Math.round(55  + t * 5)
   } else {
     const t = (intensity - 0.5) * 2
-    r = Math.round(230 + t * 23)
-    g = Math.round(160 - t * 95)
-    b = Math.round(40  - t * 40)
+    r = Math.round(210 - t * 10)
+    g = Math.round(150 - t * 100)
+    b = Math.round(60  - t * 40)
   }
   return `rgb(${r},${g},${b})`
 }
@@ -73,7 +73,7 @@ export default function MeasureHeatmap({ totalBars, measureHeat, totalSessions, 
   const [tooltip, setTooltip] = useState(null) // { x, text }
 
   // Kolor pustego paska — odczytujemy z CSS
-  const emptyColorRef = useRef('#2a2a4a')
+  const emptyColorRef = useRef('#2a231c')
 
   const redraw = useCallback(() => {
     const canvas = canvasRef.current
@@ -86,7 +86,7 @@ export default function MeasureHeatmap({ totalBars, measureHeat, totalSessions, 
     if (!canvas) return
     // Odczytaj kolor tła z CSS custom property
     const style = getComputedStyle(canvas.closest('.mh-wrap') ?? canvas)
-    emptyColorRef.current = style.getPropertyValue('--surface-3').trim() || '#2a2a4a'
+    emptyColorRef.current = style.getPropertyValue('--surface-3').trim() || '#2a231c'
 
     redraw()
 

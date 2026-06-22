@@ -2,7 +2,7 @@ import { Link } from 'react-router-dom'
 import './SongCard.css'
 
 const DIFF_LABELS = ['', 'Beginner', 'Easy', 'Intermediate', 'Hard', 'Expert']
-const DIFF_COLORS = ['', '#4caf50', '#8bc34a', '#ffc107', '#ff9800', '#f44336']
+const DIFF_COLORS = ['', '#8aa05a', '#a4b06a', '#ffc107', '#ff9800', '#f44336']
 
 export default function SongCard({ song }) {
   const ext = song.file_extension?.replace('.', '').toUpperCase() || 'GP'

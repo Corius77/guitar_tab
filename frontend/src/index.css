@@ -2,23 +2,27 @@
 
 /* ── Design tokens ───────────────────────────────────────────── */
 :root {
-  --bg:            #07071a;
-  --surface:       #0e0e26;
-  --surface-2:     #13132e;
-  --surface-3:     #191940;
-  --border:        #21214a;
-  --border-2:      #303068;
-  --accent:        #e94560;
-  --accent-hover:  #c73050;
-  --accent-dim:    #e9456028;
-  --accent-glow:   #e9456050;
-  --green:         #4cdf80;
-  --blue:          #4a8fff;
-  --text:          #e2e2f4;
-  --text-2:        #8080a8;
-  --text-muted:    #404068;
+  /* Seether-era palette: spłowiała sepia, charcoal, rdza (Disclaimer / Disclaimer II) */
+  --bg:            #100e0b;
+  --surface:       #181410;
+  --surface-2:     #1f1a15;
+  --surface-3:     #2a231c;
+  --surface-hover: #322a21;
+  --border:        #332a21;
+  --border-2:      #473a2d;
+  --accent:        #b86a3e;
+  --accent-hover:  #8f4a28;
+  --accent-dim:    #b86a3e28;
+  --accent-glow:   #b86a3e50;
+  --green:         #8aa05a;
+  --blue:          #6f93b0;
+  --text:          #e7ddc9;
+  --text-2:        #9c8f79;
+  --text-muted:    #5f5446;
   --radius:        8px;
   --radius-lg:     12px;
+  --font-sans:     Inter, system-ui, -apple-system, sans-serif;
+  --font-serif:    'Newsreader', Georgia, 'Times New Roman', serif;
 }
 
 /* ── Base ────────────────────────────────────────────────────── */
@@ -28,23 +32,75 @@ body {
   margin: 0;
   background: var(--bg);
   background-image:
-    radial-gradient(ellipse 100% 55% at 50% -10%, #1c1c5030, transparent),
-    radial-gradient(ellipse 50% 35% at 90% 5%,  #e9456010, transparent);
+    radial-gradient(ellipse 100% 55% at 50% -10%, #3a2a1a38, transparent),
+    radial-gradient(ellipse 50% 35% at 90% 5%,  #b86a3e12, transparent),
+    radial-gradient(ellipse 70% 50% at 15% 95%, #20180f40, transparent);
   background-attachment: fixed;
   color: var(--text);
   min-height: 100vh;
-  font-family: Inter, system-ui, -apple-system, sans-serif;
+  font-family: var(--font-sans);
   line-height: 1.5;
   font-weight: 400;
   -webkit-font-smoothing: antialiased;
   color-scheme: dark;
 }
 
+/* ── Nagłówki — redakcyjny serif (klimat Claude / okładki) ───── */
+h1, h2, h3, h4 {
+  font-family: var(--font-serif);
+  font-weight: 500;
+  letter-spacing: -0.2px;
+}
+
+/* Tytuły, wykonawcy, nagłówki sekcji i liczby — też serif */
+.brand-name, .home-title, .song-count, .empty-state,
+.song-title, .song-artist, .song-album,
+.player-artist, .player-album,
+.pg-heading, .pg-section-title, .pg-song-title, .pg-song-artist,
+.pg-streak-count, .pg-streak-label, .pg-stat-val, .pg-stat-lbl,
+.hm-title, .ks-title, .ks-section-title,
+.mh-title, .mh-subtitle, .mh-stat-value,
+.navbar-user, .auth-switch,
+.at-bpm-input, .at-bpm-panel-label, .at-loop-label, .at-track-select-label {
+  font-family: var(--font-serif);
+}
+
+/* ── Winieta — przyciemnione krawędzie kadru (cała aplikacja) ── */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: 9998;
+  pointer-events: none;
+  background:
+    /* pionowe rysy — zużyta taśma / spłowiały nadruk */
+    linear-gradient(90deg, transparent 11.4%, #ffffff10 11.5%, transparent 11.6%),
+    linear-gradient(90deg, transparent 27.2%, #00000028 27.3%, transparent 27.4%),
+    linear-gradient(90deg, transparent 48.9%, #ffffff0c 49%, transparent 49.1%),
+    linear-gradient(90deg, transparent 63.6%, #00000022 63.7%, transparent 63.8%),
+    linear-gradient(90deg, transparent 81.3%, #ffffff0e 81.4%, transparent 81.5%),
+    /* winieta — przyciemnione krawędzie kadru */
+    radial-gradient(ellipse 120% 130% at 50% 50%, transparent 55%, #00000060 100%),
+    linear-gradient(180deg, #00000030 0%, transparent 14%, transparent 86%, #00000045 100%);
+}
+
+/* ── Ziarno filmowe — spłowiała, postarzona faktura okładki ──── */
+body::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  pointer-events: none;
+  opacity: 0.15;
+  mix-blend-mode: overlay;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
 /* ── Scrollbar ───────────────────────────────────────────────── */
 ::-webkit-scrollbar { width: 6px; height: 6px; }
 ::-webkit-scrollbar-track { background: var(--surface); }
 ::-webkit-scrollbar-thumb { background: var(--border-2); border-radius: 3px; }
-::-webkit-scrollbar-thumb:hover { background: #505088; }
+::-webkit-scrollbar-thumb:hover { background: #5f5346; }
 
 /* ── Global buttons ──────────────────────────────────────────── */
 .btn {
@@ -68,14 +124,14 @@ body {
 .btn:not(:disabled):active { transform: scale(0.97); }
 
 .btn-primary {
-  background: linear-gradient(135deg, #e94560, #c73050);
+  background: linear-gradient(135deg, #b86a3e, #8f4a28);
   color: #fff;
-  border-color: #e94560;
-  box-shadow: 0 2px 12px #e9456035;
+  border-color: #b86a3e;
+  box-shadow: 0 2px 12px #b86a3e35;
 }
 .btn-primary:hover:not(:disabled) {
-  background: linear-gradient(135deg, #ff5570, #e94560);
-  box-shadow: 0 4px 20px #e9456055;
+  background: linear-gradient(135deg, #cf8456, #b86a3e);
+  box-shadow: 0 4px 20px #b86a3e55;
 }
 
 .btn-ghost {

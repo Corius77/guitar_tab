@@ -5,7 +5,7 @@
   border: 1px solid var(--border);
   border-radius: 12px;
   overflow: hidden;
-  box-shadow: 0 8px 40px #00000055, 0 0 0 1px #ffffff05;
+  box-shadow: 0 8px 40px #00000055, 0 0 0 1px #ffffff05, inset 0 0 90px #00000033;
 }
 
 /* ── Transport controls ─────────────────────────────────────── */
@@ -14,7 +14,7 @@
   align-items: center;
   gap: 10px;
   padding: 10px 14px;
-  background: linear-gradient(180deg, #161630, #111128);
+  background: linear-gradient(180deg, #1c1813, #16120e);
   border-bottom: 1px solid var(--border);
   flex-wrap: wrap;
 }
@@ -37,12 +37,12 @@
   font-family: inherit;
 }
 .at-btn:disabled { opacity: 0.35; cursor: default; pointer-events: none; }
-.at-btn:not(:disabled):hover { background: #252550; border-color: var(--border-2); color: var(--text); }
+.at-btn:not(:disabled):hover { background: #34291f; border-color: var(--border-2); color: var(--text); }
 .at-btn:not(:disabled):active { transform: scale(0.93); }
 
-.at-btn-play  { color: var(--green); border-color: #4cdf8030; }
+.at-btn-play  { color: var(--green); border-color: #8aa05a30; }
 .at-btn-pause { color: #ffd060;      border-color: #ffd06030; }
-.at-btn-play:not(:disabled):hover  { box-shadow: 0 0 12px #4cdf8030; border-color: #4cdf8060; }
+.at-btn-play:not(:disabled):hover  { box-shadow: 0 0 12px #8aa05a30; border-color: #8aa05a60; }
 .at-btn-pause:not(:disabled):hover { box-shadow: 0 0 12px #ffd06030; border-color: #ffd06060; }
 
 /* ── Progress ────────────────────────────────────────────────── */
@@ -57,10 +57,10 @@
 
 .at-progress-fill {
   height: 100%;
-  background: linear-gradient(90deg, #c73050, var(--accent), #ff6b80);
+  background: linear-gradient(90deg, #8f4a28, var(--accent), #d99a6a);
   border-radius: 3px;
   transition: width 0.3s linear;
-  box-shadow: 0 0 6px #e9456055;
+  box-shadow: 0 0 6px #b86a3e55;
 }
 
 /* ── Label + range wrappers ──────────────────────────────────── */
@@ -115,9 +115,9 @@
 .at-btn-metro:not(:disabled):hover { opacity: 0.8; }
 .at-btn-metro--on {
   opacity: 1;
-  background: #1a2e1a;
-  border-color: #4cdf8060;
-  box-shadow: 0 0 10px #4cdf8040;
+  background: #23250f;
+  border-color: #8aa05a60;
+  box-shadow: 0 0 10px #8aa05a40;
   color: var(--green);
 }
 
@@ -165,7 +165,7 @@
   line-height: 1;
   font-family: inherit;
 }
-.at-bpm-step:hover:not(:disabled) { background: #252550; color: var(--text); border-color: var(--border-2); }
+.at-bpm-step:hover:not(:disabled) { background: #34291f; color: var(--text); border-color: var(--border-2); }
 .at-bpm-step:disabled { opacity: 0.3; cursor: default; }
 
 .at-bpm-field {
@@ -221,22 +221,45 @@
 }
 .at-bpm-reset:hover { background: var(--accent-dim); }
 
-/* ── Loop row — floating fixed panel ─────────────────────────── */
-.at-loop-row {
+/* ── Dolny pasek — jeden wspólny kontener (pętla · tempo · ścieżka) ── */
+.at-bottom-bar {
   position: fixed;
-  bottom: 28px;
-  left: 28px;
+  bottom: 22px;
+  left: 50%;
+  transform: translateX(-50%);
   z-index: 900;
 
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 10px 14px;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 14px;
 
-  background: #0f0f26;
-  border: 1px solid #28285a;
+  max-width: calc(100vw - 32px);
+  padding: 9px 18px;
+
+  background: #17130d;
+  border: 1px solid #3a2e22;
   border-radius: 50px;
-  box-shadow: 0 8px 32px rgba(0,0,0,0.55), 0 0 0 1px #ffffff08;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.55), 0 0 0 1px #ffffff08, inset 0 0 70px #00000033;
+}
+
+/* Grupy w pasku + separatory między nimi */
+.at-bb-group { display: flex; align-items: center; }
+.at-bb-group + .at-bb-group {
+  border-left: 1px solid #3a2e22;
+  padding-left: 14px;
+}
+
+/* Transport (play / stop / głośność / metronom) w dolnym pasku */
+.at-transport { gap: 8px; }
+.at-transport .at-control-label input[type=range] { width: 64px; }
+
+/* ── Loop — grupa w dolnym pasku ─────────────────────────────── */
+.at-loop-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
 }
 
 .at-loop-label {
@@ -260,7 +283,7 @@
   height: 30px;
   transition: border-color 0.15s;
 }
-.at-loop-range-inputs:focus-within { border-color: var(--blue); box-shadow: 0 0 0 2px #4a8fff20; }
+.at-loop-range-inputs:focus-within { border-color: var(--blue); box-shadow: 0 0 0 2px #6f93b020; }
 
 .at-loop-range-hint {
   font-size: 11px;
@@ -274,7 +297,7 @@
   background: transparent;
   border: none;
   box-shadow: none;
-  color: #a0c4ff;
+  color: #aac3d2;
   font-size: 13px;
   font-weight: 600;
   text-align: center;
@@ -310,12 +333,12 @@
   font-family: inherit;
 }
 .at-loop-toggle:disabled { opacity: 0.3; cursor: default; pointer-events: none; }
-.at-loop-toggle:not(:disabled):hover { background: #202048; border-color: var(--border-2); }
+.at-loop-toggle:not(:disabled):hover { background: #2a2218; border-color: var(--border-2); }
 .at-loop-toggle--on {
-  background: #0e1e38;
-  border-color: #4a8fff60;
-  color: #80b4ff;
-  box-shadow: 0 0 10px #4a8fff30;
+  background: #241a10;
+  border-color: #6f93b060;
+  color: #9bb6c8;
+  box-shadow: 0 0 10px #6f93b030;
 }
 
 .at-loop-clear {
@@ -332,23 +355,11 @@
 }
 .at-loop-clear:hover { color: var(--accent); background: var(--accent-dim); }
 
-/* ── BPM floating fixed panel ────────────────────────────────── */
+/* ── BPM — grupa w dolnym pasku ──────────────────────────────── */
 .at-bpm-panel {
-  position: fixed;
-  bottom: 28px;
-  left: 50%;
-  transform: translateX(-50%);
-  z-index: 900;
-
   display: flex;
   align-items: center;
   gap: 6px;
-  padding: 8px 14px;
-
-  background: #0f0f26;
-  border: 1px solid #28285a;
-  border-radius: 50px;
-  box-shadow: 0 8px 32px rgba(0,0,0,0.55), 0 0 0 1px #ffffff08;
 }
 
 .at-bpm-panel-label {
@@ -375,13 +386,16 @@
 .at-score-wrapper {
   position: relative;
   min-height: 320px;
-  background: #f5f5f0;
+  background: #efe7d6;
+  /* Zamyka kursor alphaTab w osobnym kontekście — nie wyłazi nad
+     pływające panele (pętla / tempo / ścieżka), które mają z-index 900 */
+  isolation: isolate;
 }
 
 .at-surface {
   width: 100%;
   overflow-x: auto;
-  background: #f5f5f0;
+  background: #efe7d6;
   padding: 8px 0;
 }
 
@@ -389,26 +403,26 @@
 
 /* ── AlphaTab cursors ────────────────────────────────────────── */
 .at-cursor-bar {
-  background: rgba(0, 200, 255, 0.12);
-  border-left: 4px solid rgba(0, 200, 255, 0.7);
+  background: rgba(184, 106, 62, 0.13);
+  border-left: 4px solid rgba(210, 73, 27, 0.8);
 }
 
 .at-cursor-beat {
-  background: #00d4ff;
+  background: #d2491b;
   width: 288px !important;
   opacity: 1;
   border-radius: 2px;
   box-shadow:
-    0 0 0 2px #003a44,
-    0 0 10px #00d4ff,
-    0 0 24px #00d4ffbb,
-    0 0 40px #00d4ff55;
+    0 0 0 2px #3a1505,
+    0 0 10px #d2491b,
+    0 0 24px #d2491bbb,
+    0 0 40px #d2491b55;
 }
 
 .at-selection > div {
-  background: rgba(74, 143, 255, 0.12);
-  border-top: 1px solid rgba(74, 143, 255, 0.35);
-  border-bottom: 1px solid rgba(74, 143, 255, 0.35);
+  background: rgba(111, 147, 176, 0.14);
+  border-top: 1px solid rgba(111, 147, 176, 0.38);
+  border-bottom: 1px solid rgba(111, 147, 176, 0.38);
 }
 
 /* ── Overlay / loading ───────────────────────────────────────── */
@@ -420,7 +434,7 @@
   align-items: center;
   justify-content: center;
   gap: 14px;
-  background: #f5f5f0cc;
+  background: #efe7d6cc;
   color: #555;
   font-size: 14px;
   z-index: 10;
@@ -456,12 +470,12 @@
   flex-shrink: 0;
   font-family: inherit;
 }
-.at-loop-bookmarks:hover { background: #202048; border-color: var(--border-2); color: var(--text); }
+.at-loop-bookmarks:hover { background: #2a2218; border-color: var(--border-2); color: var(--text); }
 .at-loop-bookmarks--open {
-  background: #1a2a10;
-  border-color: #6ec84060;
-  color: #9de870;
-  box-shadow: 0 0 10px #6ec84030;
+  background: #23250f;
+  border-color: #86a05260;
+  color: #b6c585;
+  box-shadow: 0 0 10px #86a05230;
 }
 
 .at-loop-bookmarks-count {
@@ -491,8 +505,8 @@
   z-index: 900;
   width: 280px;
 
-  background: #0c0c24;
-  border: 1px solid #2c2c5e;
+  background: #120f0a;
+  border: 1px solid #3e3124;
   border-radius: 12px;
   box-shadow: 0 8px 32px rgba(0,0,0,0.65), 0 0 0 1px #ffffff08;
   overflow: hidden;
@@ -503,7 +517,7 @@
   align-items: center;
   justify-content: space-between;
   padding: 9px 14px 8px;
-  border-bottom: 1px solid #1e1e48;
+  border-bottom: 1px solid #2a2218;
   font-size: 11px;
   font-weight: 700;
   color: var(--text-muted);
@@ -530,13 +544,13 @@
   display: flex;
   gap: 6px;
   padding: 9px 10px;
-  border-bottom: 1px solid #1e1e48;
+  border-bottom: 1px solid #2a2218;
 }
 
 .at-save-loop-name-input {
   flex: 1;
-  background: #0e0e2a;
-  border: 1px solid #2a2a58;
+  background: #14110c;
+  border: 1px solid #392d21;
   border-radius: 6px;
   color: var(--text);
   font-size: 12px;
@@ -546,13 +560,13 @@
   font-family: inherit;
 }
 .at-save-loop-name-input::placeholder { color: var(--text-muted); opacity: 0.6; }
-.at-save-loop-name-input:focus { border-color: #4a8fff80; }
+.at-save-loop-name-input:focus { border-color: #6f93b080; }
 
 .at-save-loop-btn {
-  background: #1a2e50;
-  border: 1px solid #4a8fff50;
+  background: #2c2a1c;
+  border: 1px solid #6f93b050;
   border-radius: 6px;
-  color: #80b4ff;
+  color: #9bb6c8;
   font-size: 11px;
   font-weight: 700;
   padding: 0 10px;
@@ -561,15 +575,15 @@
   transition: background 0.15s, border-color 0.15s;
   font-family: inherit;
 }
-.at-save-loop-btn:hover:not(:disabled) { background: #233d68; border-color: #4a8fff90; }
+.at-save-loop-btn:hover:not(:disabled) { background: #3a3328; border-color: #6f93b090; }
 .at-save-loop-btn:disabled { opacity: 0.35; cursor: default; }
 
 .at-save-loop-error {
   margin: 0;
   padding: 4px 10px 6px;
   font-size: 11px;
-  color: #ff6b80;
-  border-bottom: 1px solid #1e1e48;
+  color: #d99a6a;
+  border-bottom: 1px solid #2a2218;
 }
 
 /* List */
@@ -588,7 +602,7 @@
   max-height: 220px;
   overflow-y: auto;
   scrollbar-width: thin;
-  scrollbar-color: #2a2a58 transparent;
+  scrollbar-color: #392d21 transparent;
 }
 
 .at-saved-loop-item {
@@ -597,7 +611,7 @@
   gap: 4px;
   padding: 2px 6px 2px 10px;
 }
-.at-saved-loop-item:hover { background: #111130; }
+.at-saved-loop-item:hover { background: #1a1510; }
 
 .at-saved-loop-load {
   flex: 1;
@@ -615,7 +629,7 @@
   font-family: inherit;
   min-width: 0;
 }
-.at-saved-loop-load:hover .at-saved-loop-name { color: #a0c4ff; }
+.at-saved-loop-load:hover .at-saved-loop-name { color: #aac3d2; }
 
 .at-saved-loop-name {
   font-size: 12px;
@@ -629,7 +643,7 @@
 
 .at-saved-loop-range {
   font-size: 11px;
-  color: #6080b0;
+  color: #8198aa;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
   flex-shrink: 0;
@@ -638,7 +652,7 @@
 .at-saved-loop-delete {
   background: none;
   border: none;
-  color: #404060;
+  color: #4a4034;
   font-size: 11px;
   cursor: pointer;
   padding: 4px 5px;
@@ -650,20 +664,11 @@
 }
 .at-saved-loop-delete:hover { color: var(--accent); background: var(--accent-dim); }
 
-/* ── Track selector ──────────────────────────────────────────── */
+/* ── Track selector — grupa w dolnym pasku ───────────────────── */
 .at-track-select {
-  position: fixed;
-  bottom: 28px;
-  right: 180px;
-  z-index: 900;
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 10px 14px;
-  background: #0f0f26;
-  border: 1px solid #28285a;
-  border-radius: 50px;
-  box-shadow: 0 8px 32px rgba(0,0,0,0.55), 0 0 0 1px #ffffff08;
 }
 
 .at-track-select-label {
@@ -684,8 +689,7 @@
   padding: 4px 8px;
   cursor: pointer;
   font-family: inherit;
-  flex: 1;
-  max-width: 320px;
+  max-width: 220px;
 }
 
 .at-track-select-dropdown:focus {
@@ -693,14 +697,20 @@
   border-color: var(--accent);
 }
 
-@media (max-width: 480px) {
-  .at-bpm-panel {
-    bottom: 80px;
-    left: 18px;
-    right: 18px;
+@media (max-width: 640px) {
+  .at-bottom-bar {
+    left: 12px;
+    right: 12px;
     transform: none;
-    border-radius: 12px;
-    flex-wrap: wrap;
+    max-width: none;
+    border-radius: 16px;
+    gap: 10px;
+  }
+
+  /* na wąskim ekranie separatory psują zawijanie — chowamy je */
+  .at-bb-group + .at-bb-group {
+    border-left: none;
+    padding-left: 0;
   }
 
   .at-bpm-panel-slider {
@@ -708,18 +718,10 @@
     flex-basis: 100%;
   }
 
-  .at-loop-row {
-    bottom: 18px;
-    left: 18px;
-    right: 18px;
-    border-radius: 12px;
-    flex-wrap: wrap;
-  }
-
   .at-saved-loops-panel {
     bottom: 90px;
-    left: 18px;
-    right: 18px;
+    left: 12px;
+    right: 12px;
     width: auto;
   }
 }

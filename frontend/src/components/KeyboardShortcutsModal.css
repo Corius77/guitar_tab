@@ -2,7 +2,7 @@
 .ks-backdrop {
   position: fixed;
   inset: 0;
-  background: rgba(4, 4, 16, 0.80);
+  background: rgba(8, 6, 4, 0.80);
   backdrop-filter: blur(6px);
   -webkit-backdrop-filter: blur(6px);
   display: flex;
@@ -19,10 +19,10 @@
 
 /* ── Panel ───────────────────────────────────────────────────────────────── */
 .ks-panel {
-  background: #0f0f26;
-  border: 1px solid #28285a;
+  background: #17130d;
+  border: 1px solid #3a2e22;
   border-radius: 16px;
-  box-shadow: 0 32px 80px rgba(0, 0, 0, 0.7), 0 0 0 1px #ffffff08, 0 0 60px #e9456010;
+  box-shadow: 0 32px 80px rgba(0, 0, 0, 0.7), 0 0 0 1px #ffffff08, 0 0 60px #b86a3e10, inset 0 0 80px #00000033;
   width: min(640px, calc(100vw - 32px));
   max-height: calc(100vh - 48px);
   overflow-y: auto;
@@ -42,20 +42,20 @@
   align-items: center;
   justify-content: space-between;
   padding: 18px 20px 14px;
-  border-bottom: 1px solid #2a2a4a;
+  border-bottom: 1px solid #2a2419;
 }
 
 .ks-title {
   font-size: 15px;
   font-weight: 700;
-  color: #c8c8e8;
+  color: #cabfa8;
   letter-spacing: 0.3px;
 }
 
 .ks-close {
   background: none;
   border: none;
-  color: #505070;
+  color: #5a4e3c;
   font-size: 16px;
   width: 28px;
   height: 28px;
@@ -68,7 +68,7 @@
   line-height: 1;
   padding: 0;
 }
-.ks-close:hover { color: #e0e0f0; background: #ffffff12; }
+.ks-close:hover { color: #e7ddc9; background: #ffffff12; }
 
 /* ── Shortcuts grid ──────────────────────────────────────────────────────── */
 .ks-grid {
@@ -106,7 +106,7 @@
   font-weight: 700;
   letter-spacing: 0.8px;
   text-transform: uppercase;
-  color: #5060a0;
+  color: #6a5740;
 }
 
 /* ── List ────────────────────────────────────────────────────────────────── */
@@ -132,7 +132,7 @@
 
 .ks-label {
   font-size: 13px;
-  color: #9090b8;
+  color: #8f8369;
   flex: 1;
 }
 
@@ -151,25 +151,25 @@
   min-width: 26px;
   height: 22px;
   padding: 0 6px;
-  background: #1e1e3a;
-  border: 1px solid #3a3a60;
-  border-bottom: 2px solid #2a2a50;
+  background: #241d16;
+  border: 1px solid #443827;
+  border-bottom: 2px solid #342a1f;
   border-radius: 5px;
   font-family: ui-monospace, 'Cascadia Code', 'Consolas', monospace;
   font-size: 11px;
   font-weight: 600;
-  color: #c0c0e0;
+  color: #c3b89f;
   user-select: none;
-  box-shadow: 0 1px 0 #0a0a1a;
+  box-shadow: 0 1px 0 #100e0b;
   letter-spacing: 0;
 }
 
 /* ── Footer ──────────────────────────────────────────────────────────────── */
 .ks-footer {
   padding: 10px 20px 14px;
-  border-top: 1px solid #1e1e38;
+  border-top: 1px solid #221c15;
   font-size: 11px;
-  color: #40405a;
+  color: #3a3024;
   display: flex;
   align-items: center;
   gap: 4px;
