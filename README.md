@@ -2,6 +2,8 @@
 
 A web app for browsing and practicing guitar tablatures — inspired by Songsterr. Supports Guitar Pro files (`.gp`, `.gp3`, `.gp4`, `.gp5`, `.gpx`), renders an interactive score, and automatically tracks your practice progress in the background.
 
+> **Fun project, vibe-coded.** 🎸 Osobisty projekt do własnych ćwiczeń na gitarze, pisany w dużej mierze przez AI (vibe coding) — bez ambicji produkcyjnych, bez gwarancji, dla frajdy.
+
 ## Screenshots
 
 > *(add screenshots to `docs/` and update the paths below)*
