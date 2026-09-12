@@ -1,6 +1,8 @@
 import { useState, useEffect, useRef } from 'react'
 import { uploadSong, addSongVideo } from '../api/songs'
 import { getGenres } from '../api/songs'
+import { IconClose, IconFile, IconMusicNote } from './icons'
+import { readTabMetadata } from '../utils/tabMetadata'
 import './UploadModal.css'
 
 export default function UploadModal({ onClose, onSuccess }) {
@@ -12,7 +14,38 @@ export default function UploadModal({ onClose, onSuccess }) {
   })
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
+  const [reading, setReading] = useState(false)
+  const [autoFilled, setAutoFilled] = useState([])
   const dropRef = useRef()
+
+  // Wybór pliku → czytamy z niego tytuł/wykonawcę/album i wstawiamy do
+  // formularza. Nadpisujemy tylko puste pola — jeśli ktoś zdążył coś
+  // wpisać, jego wersja wygrywa.
+  const pickFile = async (f) => {
+    if (!f) return
+    setFile(f)
+    setError('')
+    setAutoFilled([])
+    setReading(true)
+    try {
+      const meta = await readTabMetadata(f)
+      if (!meta) return
+      const wypelnione = []
+      setForm(prev => {
+        const next = { ...prev }
+        for (const key of ['title', 'artist', 'album']) {
+          if (meta[key] && !prev[key].trim()) {
+            next[key] = meta[key]
+            wypelnione.push(key)
+          }
+        }
+        return next
+      })
+      setAutoFilled(wypelnione)
+    } finally {
+      setReading(false)
+    }
+  }
 
   useEffect(() => {
     getGenres().then(({ data }) => setGenres(data.results ?? data))
@@ -20,8 +53,7 @@ export default function UploadModal({ onClose, onSuccess }) {
 
   const handleDrop = (e) => {
     e.preventDefault()
-    const f = e.dataTransfer.files[0]
-    if (f) setFile(f)
+    pickFile(e.dataTransfer.files[0])
   }
 
   const handleSubmit = async (e) => {
@@ -66,7 +98,7 @@ export default function UploadModal({ onClose, onSuccess }) {
       <div className="modal" onClick={(e) => e.stopPropagation()}>
         <div className="modal-header">
           <h2>Upload Tab</h2>
-          <button className="modal-close" onClick={onClose}>✕</button>
+          <button className="modal-close" onClick={onClose}><IconClose /></button>
         </div>
 
         <form onSubmit={handleSubmit} className="modal-body">
@@ -82,13 +114,19 @@ export default function UploadModal({ onClose, onSuccess }) {
               type="file"
               accept=".gp5,.gpx,.gp4,.gp3,.gp"
               style={{ display: 'none' }}
-              onChange={(e) => setFile(e.target.files[0])}
+              onChange={(e) => pickFile(e.target.files[0])}
             />
             {file ? (
-              <span className="drop-file-name">📄 {file.name}</span>
+              <span className="drop-file-name">
+                <IconFile /> {file.name}
+                {reading && <span className="drop-hint"> — czytam metadane…</span>}
+                {!reading && autoFilled.length > 0 && (
+                  <span className="drop-hint"> — uzupełniono z pliku</span>
+                )}
+              </span>
             ) : (
               <>
-                <span className="drop-icon">🎼</span>
+                <span className="drop-icon"><IconMusicNote /></span>
                 <span>Drop .gp5 / .gpx file here or click to browse</span>
               </>
             )}

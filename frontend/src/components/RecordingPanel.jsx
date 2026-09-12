@@ -7,6 +7,7 @@ import {
   startWavRecorder,
 } from '../audio/recorder'
 import { getRecordings, uploadRecording, deleteRecording } from '../api/practice'
+import { IconMic, IconClose, IconStop, IconRecDot, IconTrash, IconDownload } from './icons'
 
 const LS_DEVICE_KEY = 'guitarTab.recDeviceId'
 const LS_FORMAT_KEY = 'guitarTab.recFormat'
@@ -173,13 +174,13 @@ export default function RecordingPanel({
         onClick={() => setOpen(o => !o)}
         title="Nagrywanie"
         disabled={disabled}
-      >🎙{recordings.length > 0 && <span className="at-rec-count">{recordings.length}</span>}</button>
+      ><IconMic />{recordings.length > 0 && <span className="at-rec-count">{recordings.length}</span>}</button>
 
       {open && (
         <div className="at-rec-panel">
           <div className="at-rec-header">
             <strong>Nagrywanie</strong>
-            <button className="at-rec-close" onClick={() => setOpen(false)}>✕</button>
+            <button className="at-rec-close" onClick={() => setOpen(false)}><IconClose /></button>
           </div>
 
           <div className="at-rec-row">
@@ -230,7 +231,7 @@ export default function RecordingPanel({
           <div className="at-rec-row at-rec-actions">
             {state === 'idle' && (
               <button className="at-rec-btn at-rec-btn--start" onClick={start}>
-                ● REC
+                <IconRecDot /> REC
               </button>
             )}
             {state === 'starting' && (
@@ -239,9 +240,9 @@ export default function RecordingPanel({
             {state === 'recording' && (
               <>
                 <button className="at-rec-btn at-rec-btn--stop" onClick={stop}>
-                  ■ STOP
+                  <IconStop /> STOP
                 </button>
-                <span className="at-rec-elapsed">⬤ {fmtTime(elapsed)}</span>
+                <span className="at-rec-elapsed"><IconRecDot /> {fmtTime(elapsed)}</span>
               </>
             )}
             {state === 'uploading' && (
@@ -275,9 +276,9 @@ export default function RecordingPanel({
                     )}
                     <div className="at-rec-item-actions">
                       {r.file_url && (
-                        <a className="at-rec-item-link" href={r.file_url} download target="_blank" rel="noreferrer">⤓</a>
+                        <a className="at-rec-item-link" href={r.file_url} download target="_blank" rel="noreferrer"><IconDownload /></a>
                       )}
-                      <button className="at-rec-item-del" onClick={() => handleDelete(r.id)} title="Usuń">🗑</button>
+                      <button className="at-rec-item-del" onClick={() => handleDelete(r.id)} title="Usuń"><IconTrash /></button>
                     </div>
                   </li>
                 ))}

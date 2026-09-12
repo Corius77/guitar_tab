@@ -1,20 +1,25 @@
 import { useEffect } from 'react'
+import { IconPlay, IconMusicNote, IconVolume, IconDrum, IconVideo, IconLoop, IconClose } from './icons'
 import './KeyboardShortcutsModal.css'
 
 const SHORTCUTS = [
   {
     id: 'playback',
     group: 'Odtwarzanie',
-    icon: '▶',
+    icon: <IconPlay />,
     items: [
       { keys: ['Space'], label: 'Play / Pause' },
       { keys: ['S'], label: 'Stop' },
+      { keys: ['←'], label: 'Takt wstecz' },
+      { keys: ['→'], label: 'Takt naprzód' },
+      { keys: ['Shift', '←→'], label: 'Skok o 4 takty' },
+      { keys: ['Home'], label: 'Początek pętli / utworu' },
     ],
   },
   {
     id: 'tempo',
     group: 'Tempo',
-    icon: '♩',
+    icon: <IconMusicNote />,
     items: [
       { keys: ['='], label: 'BPM +5' },
       { keys: ['+'], label: 'BPM +1' },
@@ -26,16 +31,20 @@ const SHORTCUTS = [
   {
     id: 'volume',
     group: 'Głośność',
-    icon: '🔊',
+    icon: <IconVolume />,
     items: [
       { keys: ['↑'], label: 'Głośność +5%' },
       { keys: ['↓'], label: 'Głośność −5%' },
+      { keys: ['T'], label: 'Solo — tylko wybrana ścieżka' },
+      { keys: ['B'], label: 'Podkład — wycisz wybraną ścieżkę' },
+      { keys: ['D'], label: 'Przester (distortion guitar)' },
+      { keys: ['H'], label: 'Ślady ćwiczeń — kolor taktów' },
     ],
   },
   {
     id: 'metronome',
     group: 'Metronom',
-    icon: '🥁',
+    icon: <IconDrum />,
     items: [
       { keys: ['M'], label: 'Włącz / wyłącz' },
     ],
@@ -43,7 +52,7 @@ const SHORTCUTS = [
   {
     id: 'video',
     group: 'Wideo',
-    icon: '📺',
+    icon: <IconVideo />,
     items: [
       { keys: ['V'], label: 'Pokaż / ukryj wideo' },
     ],
@@ -51,7 +60,7 @@ const SHORTCUTS = [
   {
     id: 'loop',
     group: 'Pętla',
-    icon: '🔁',
+    icon: <IconLoop />,
     items: [
       { keys: ['L'], label: 'Włącz / wyłącz pętlę' },
       { keys: ['X'], label: 'Wyczyść pętlę' },
@@ -82,7 +91,7 @@ export default function KeyboardShortcutsModal({ onClose }) {
 
         <div className="ks-header">
           <span className="ks-title">Skróty klawiszowe</span>
-          <button className="ks-close" onClick={onClose} title="Zamknij (Esc)">✕</button>
+          <button className="ks-close" onClick={onClose} title="Zamknij (Esc)"><IconClose /></button>
         </div>
 
         <div className="ks-grid">
@@ -107,7 +116,7 @@ export default function KeyboardShortcutsModal({ onClose }) {
         </div>
 
         <div className="ks-footer">
-          Skróty działają gdy żadne pole tekstowe nie jest aktywne &nbsp;·&nbsp; <Key label="?" /> otwiera to okno
+          <Key label="Esc" /> wychodzi z pola / zamyka okno &nbsp;·&nbsp; <Key label="?" /> otwiera to okno
         </div>
 
       </div>

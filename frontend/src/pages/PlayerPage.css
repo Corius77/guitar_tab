@@ -41,6 +41,15 @@
 }
 .player-breadcrumb a:hover { color: var(--text-2); }
 
+/* ── Head (crossfade przy zmianie utworu) ────────────────────── */
+.player-head {
+  animation: player-head-in 0.28s ease;
+}
+@keyframes player-head-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
 /* ── Meta ────────────────────────────────────────────────────── */
 .player-meta {
   display: flex;

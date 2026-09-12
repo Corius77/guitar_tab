@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { getDashboard } from '../api/practice'
+import { IconChevronLeft, IconFire, IconGuitar, IconMusicNote, IconTimer } from '../components/icons'
 import './ProgressPage.css'
 
 // ── Helpers ────────────────────────────────────────────────────────────────
@@ -132,14 +133,14 @@ export default function ProgressPage() {
   return (
     <div className="pg-page">
       <div className="pg-breadcrumb">
-        <Link to="/">← Wszystkie taby</Link>
+        <Link to="/"><IconChevronLeft /> Wszystkie taby</Link>
       </div>
 
       <div className="pg-hero">
         <h1 className="pg-heading">Moja progresja</h1>
         {data.streak_days > 0 && (
           <div className="pg-streak">
-            <span className="pg-streak-fire">🔥</span>
+            <span className="pg-streak-fire"><IconFire /></span>
             <span className="pg-streak-count">{data.streak_days}</span>
             <span className="pg-streak-label">{data.streak_days === 1 ? 'dzień z rzędu' : 'dni z rzędu'}</span>
           </div>
@@ -148,7 +149,7 @@ export default function ProgressPage() {
 
       {noData ? (
         <div className="pg-empty">
-          <div className="pg-empty-icon">🎸</div>
+          <div className="pg-empty-icon"><IconGuitar /></div>
           <p>Jeszcze brak sesji ćwiczeń.</p>
           <p className="pg-empty-sub">Zacznij grać — dane pojawią się automatycznie.</p>
           <Link to="/" className="btn btn-primary">Przeglądaj taby</Link>
@@ -158,17 +159,17 @@ export default function ProgressPage() {
           {/* ── Główne statystyki ─────────────────────────────── */}
           <div className="pg-stats-grid">
             <div className="pg-stat-card">
-              <span className="pg-stat-icon">🎵</span>
+              <span className="pg-stat-icon"><IconMusicNote /></span>
               <span className="pg-stat-val">{data.total_sessions}</span>
               <span className="pg-stat-lbl">Sesji łącznie</span>
             </div>
             <div className="pg-stat-card">
-              <span className="pg-stat-icon">⏱</span>
+              <span className="pg-stat-icon"><IconTimer /></span>
               <span className="pg-stat-val">{formatTime(data.total_seconds)}</span>
               <span className="pg-stat-lbl">Czas ćwiczeń</span>
             </div>
             <div className="pg-stat-card">
-              <span className="pg-stat-icon">🎸</span>
+              <span className="pg-stat-icon"><IconGuitar /></span>
               <span className="pg-stat-val">{data.songs?.length ?? 0}</span>
               <span className="pg-stat-lbl">Ćwiczonych piosenek</span>
             </div>

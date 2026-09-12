@@ -1,4 +1,5 @@
 from rest_framework import serializers
+from .metadata import extract_song_metadata
 from .models import Song, Genre, SongVideo
 
 
@@ -35,6 +36,11 @@ class SongListSerializer(serializers.ModelSerializer):
 
 
 class SongDetailSerializer(serializers.ModelSerializer):
+    # Tytuł i wykonawca są w modelu wymagane, ale na wejściu już nie —
+    # jeśli ich nie podasz, dobieramy je z samego pliku Guitar Pro
+    # (patrz validate()). Brak w obu miejscach dopiero jest błędem.
+    title = serializers.CharField(max_length=255, required=False, allow_blank=True)
+    artist = serializers.CharField(max_length=255, required=False, allow_blank=True)
     genre = GenreSerializer(read_only=True)
     genre_id = serializers.PrimaryKeyRelatedField(
         queryset=Genre.objects.all(), source='genre', write_only=True, required=False, allow_null=True
@@ -60,6 +66,25 @@ class SongDetailSerializer(serializers.ModelSerializer):
         if obj.tab_file and request:
             return request.build_absolute_uri(obj.tab_file.url)
         return None
+
+    def validate(self, attrs):
+        tab_file = attrs.get('tab_file')
+        if tab_file is not None:
+            # Puste pola uzupełniamy z pliku. Tego, co użytkownik wpisał
+            # ręcznie, NIE ruszamy — plik bywa opisany byle jak.
+            meta = extract_song_metadata(tab_file, getattr(tab_file, 'name', ''))
+            for field, value in meta.items():
+                if not (attrs.get(field) or '').strip():
+                    attrs[field] = value
+
+        if self.instance is None:
+            missing = [f for f in ('title', 'artist') if not (attrs.get(f) or '').strip()]
+            if missing:
+                raise serializers.ValidationError({
+                    f: 'Nie ma tego w pliku — podaj ręcznie.' for f in missing
+                })
+
+        return attrs
 
     def create(self, validated_data):
         validated_data['uploaded_by'] = self.context['request'].user

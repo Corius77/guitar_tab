@@ -5,6 +5,7 @@ import { getSongStats } from '../api/practice'
 import AlphaTabPlayer from '../components/AlphaTabPlayer'
 import HeatmapModal from '../components/HeatmapModal'
 import { useAuth } from '../context/AuthContext'
+import { IconPlay, IconVideo, IconPlus, IconEdit, IconClose, IconChartBar, IconChevronLeft } from '../components/icons'
 import './PlayerPage.css'
 import '../components/HeatmapModal.css'
 
@@ -139,23 +140,35 @@ export default function PlayerPage() {
   }, [id, user])
 
   useEffect(() => {
-    setLoading(true)
+    let cancelled = false
+    // Pierwsze wejście (brak utworu) → pełny spinner. Kolejne przejścia →
+    // zostaw poprzedni utwór widoczny aż nowy się załaduje, żeby layout się
+    // nie zwijał (płynny crossfade jak przy przełączaniu czatów). Przy zmianie
+    // `id` render ma jeszcze stary `song`, więc spinner pokaże się tylko za
+    // pierwszym razem.
+    if (!song) setLoading(true)
+    setError('')
     getSong(id)
       .then(({ data }) => {
+        if (cancelled) return
         setSong(data)
         playSong(id).catch(() => {})
       })
-      .catch(() => setError('Tab not found.'))
-      .finally(() => setLoading(false))
-  }, [id])
+      .catch(() => { if (!cancelled) setError('Tab not found.') })
+      .finally(() => { if (!cancelled) setLoading(false) })
+    return () => { cancelled = true }
+  }, [id]) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => { fetchStats() }, [fetchStats])
 
   useEffect(() => {
     const handleKeyDown = (e) => {
+      // Ctrl+V / Cmd+V to wklejanie, nie skrót do wideo
+      if (e.ctrlKey || e.metaKey || e.altKey || e.repeat) return
       // Don't trigger if user is typing in an input
-      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return
-      
+      const tag = document.activeElement?.tagName
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return
+
       if (e.key.toLowerCase() === 'v') {
         if (song?.videos?.length > 0) {
           if (showYoutube) {
@@ -183,7 +196,7 @@ export default function PlayerPage() {
     }
   }
 
-  if (loading) return (
+  if (loading && !song) return (
     <div className="player-loading">
       <div className="spinner" />
     </div>
@@ -192,7 +205,7 @@ export default function PlayerPage() {
   if (error) return (
     <div className="player-error">
       <p>{error}</p>
-      <Link to="/" className="btn btn-ghost">← Back</Link>
+      <Link to="/" className="btn btn-ghost"><IconChevronLeft /> Back</Link>
     </div>
   )
 
@@ -200,10 +213,7 @@ export default function PlayerPage() {
 
   return (
     <div className="player-page">
-      <div className="player-breadcrumb">
-        <Link to="/">← All Tabs</Link>
-      </div>
-
+      <div className="player-head" key={song.id}>
       <div className="player-meta">
         <div className="player-title-area">
           <h1>{song.title}</h1>
@@ -217,7 +227,7 @@ export default function PlayerPage() {
         <div className="player-tags">
           {song.genre && <span className="tag">{song.genre.name}</span>}
           {song.difficulty && <span className="tag">{DIFF_LABELS[song.difficulty]}</span>}
-          <span className="tag">▶ {song.play_count.toLocaleString()} plays</span>
+          <span className="tag"><IconPlay /> {song.play_count.toLocaleString()} plays</span>
           {song.uploaded_by && (
             <span className="tag tag-uploader">by {song.uploaded_by}</span>
           )}
@@ -226,16 +236,16 @@ export default function PlayerPage() {
               className={`tag tag-yt ${showYoutube ? 'active' : ''}`}
               onClick={() => showYoutube ? handleCloseYoutube() : setShowYoutube(true)}
             >
-              📺 YouTube ({song.videos.length})
+              <IconVideo /> YouTube ({song.videos.length})
             </button>
           ) : isOwner && (
             <button className="tag tag-yt-add" onClick={handleAddYoutube}>
-              ➕ Add YouTube Video
+              <IconPlus /> Add YouTube Video
             </button>
           )}
           {isOwner && song.videos?.length > 0 && (
             <button className="tag tag-edit" onClick={handleAddYoutube} title="Add Another Video">
-              ➕
+              <IconPlus />
             </button>
           )}
         </div>
@@ -253,6 +263,7 @@ export default function PlayerPage() {
       {song.description && (
         <p className="player-description">{song.description}</p>
       )}
+      </div>
 
       {showYoutube && song.videos?.length > 0 && (
         <div className="player-yt-modal-backdrop" onClick={handleCloseYoutube}>
@@ -269,14 +280,14 @@ export default function PlayerPage() {
                     </button>
                     {isOwner && (
                       <div className="yt-tab-actions">
-                        <button className="yt-tab-action yt-tab-rename" onClick={(e) => handleRenameVideo(v, e)} title="Zmień nazwę">✏️</button>
-                        <button className="yt-tab-action yt-tab-delete" onClick={(e) => handleDeleteVideo(v.id, e)} title="Usuń wideo">✕</button>
+                        <button className="yt-tab-action yt-tab-rename" onClick={(e) => handleRenameVideo(v, e)} title="Zmień nazwę"><IconEdit /></button>
+                        <button className="yt-tab-action yt-tab-delete" onClick={(e) => handleDeleteVideo(v.id, e)} title="Usuń wideo"><IconClose /></button>
                       </div>
                     )}
                   </div>
                 ))}
               </div>
-              <button className="player-youtube-close" onClick={handleCloseYoutube}>✕</button>
+              <button className="player-youtube-close" onClick={handleCloseYoutube}><IconClose /></button>
             </div>
             <div className="player-youtube-body">
               <div id="youtube-player-element"></div>
@@ -288,6 +299,7 @@ export default function PlayerPage() {
       <AlphaTabPlayer
         fileUrl={song.tab_file_url}
         songId={song.id}
+        stats={stats}
         onStatsChange={fetchStats}
       />
 
@@ -298,14 +310,14 @@ export default function PlayerPage() {
             onClick={() => showYoutube ? handleCloseYoutube() : setShowYoutube(true)} 
             title="Odtwarzacz YouTube"
           >
-            <span className="yt-fab-icon">📺</span>
+            <span className="yt-fab-icon"><IconVideo /></span>
             <span className="yt-fab-text">Wideo ({song.videos.length})</span>
           </button>
         )}
 
         {user && stats && stats.total_sessions > 0 && (
           <button className="hm-fab" onClick={() => setHeatmapOpen(true)} title="Statystyki ćwiczeń">
-            <span className="hm-fab-icon">📊</span>
+            <span className="hm-fab-icon"><IconChartBar /></span>
             <span className="yt-fab-text">Statystyki</span>
             <span className="hm-fab-dot" />
           </button>

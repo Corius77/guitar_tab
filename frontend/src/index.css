@@ -59,7 +59,7 @@ h1, h2, h3, h4 {
 .pg-heading, .pg-section-title, .pg-song-title, .pg-song-artist,
 .pg-streak-count, .pg-streak-label, .pg-stat-val, .pg-stat-lbl,
 .hm-title, .ks-title, .ks-section-title,
-.mh-title, .mh-subtitle, .mh-stat-value,
+.mh-subtitle, .mh-stat-value,
 .navbar-user, .auth-switch,
 .at-bpm-input, .at-bpm-panel-label, .at-loop-label, .at-track-select-label {
   font-family: var(--font-serif);

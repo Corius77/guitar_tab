@@ -100,6 +100,25 @@
   border-color: var(--border-2);
 }
 
+/* ── Riffs button ────────────────────────────────────────────── */
+.at-btn-riffs {
+  width: auto;
+  height: 32px;
+  padding: 0 12px;
+  gap: 6px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--text-muted);
+  margin-left: auto;
+  letter-spacing: 0.2px;
+}
+.at-btn-riffs:not(:disabled):hover {
+  color: var(--text);
+  border-color: var(--border-2);
+}
+/* Gdy jest przycisk riffów, "?" nie potrzebuje własnego marginesu */
+.at-btn-riffs + .at-btn-shortcuts { margin-left: 0; }
+
 /* ── Metronome ───────────────────────────────────────────────── */
 .at-metronome-group {
   display: flex;
@@ -225,7 +244,8 @@
 .at-bottom-bar {
   position: fixed;
   bottom: 22px;
-  left: 50%;
+  /* wyśrodkowanie względem głównego obszaru, nie całego okna (sidebar po lewej) */
+  left: calc(50% + var(--sidebar-w, 0px) / 2);
   transform: translateX(-50%);
   z-index: 900;
 
@@ -242,6 +262,15 @@
   border: 1px solid #3a2e22;
   border-radius: 50px;
   box-shadow: 0 8px 32px rgba(0,0,0,0.55), 0 0 0 1px #ffffff08, inset 0 0 70px #00000033;
+
+  transition: opacity 0.25s ease;
+}
+
+/* Podczas ładowania nowego utworu pasek zostaje na miejscu, lekko przygaszony
+   i nieklikalny — płynne przejście zamiast znikania/wskakiwania. */
+.at-bottom-bar--loading {
+  opacity: 0.5;
+  pointer-events: none;
 }
 
 /* Grupy w pasku + separatory między nimi */
@@ -341,6 +370,24 @@
   box-shadow: 0 0 10px #6f93b030;
 }
 
+/* Odliczanie przed startem pętli */
+.at-loop-countin {
+  width: auto;
+  padding: 0 8px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+}
+
+/* Puls przycisku Play w trakcie odliczania */
+.at-btn--countin {
+  animation: at-countin-pulse 0.5s ease-in-out infinite alternate;
+}
+@keyframes at-countin-pulse {
+  from { box-shadow: 0 0 0 0 #6f93b060; }
+  to { box-shadow: 0 0 12px 2px #6f93b060; }
+}
+
 .at-loop-clear {
   background: none;
   border: none;
@@ -397,9 +444,86 @@
   overflow-x: auto;
   background: #efe7d6;
   padding: 8px 0;
+  transition: opacity 0.25s ease;
 }
 
+/* Podczas ładowania ukryj surface — nowa tabulatura wfejduje się po renderze
+   zamiast wskakiwać gotowa (płynne przejście jak przy zmianie czatu). */
+.at-surface.is-loading { opacity: 0; }
+
 .at-surface > * { display: block; }
+
+/* ── Ślady ćwiczeń — kolor taktów na tabulaturze ─────────────── */
+/* Warstwa dzieli układ współrzędnych z alphaTabowym .at-cursors (oba są
+   pierwszym dzieckiem kontenera, oba position:absolute bez left/top).
+   z-index 1 → nad nutami, ale pod kursorem (który siedzi na 1000). */
+.at-bar-heat {
+  position: absolute;
+  z-index: 1;
+  pointer-events: none;
+  /* Mnożenie zamiast zwykłej alfy — patrz komentarz w barHeatOverlay.js.
+     Działa, bo .at-score-wrapper ma isolation: isolate, więc mieszamy
+     tylko z tabulaturą pod spodem, a nie z tłem całej strony. */
+  mix-blend-mode: multiply;
+}
+
+.at-bar-heat-cell {
+  position: absolute;
+  border-radius: 3px;
+}
+
+.at-heat {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.at-heat-toggle {
+  background: var(--surface-3);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text-muted);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  padding: 5px 9px;
+  line-height: 1;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, box-shadow 0.15s, color 0.15s;
+  flex-shrink: 0;
+  font-family: inherit;
+}
+
+.at-heat-toggle:hover { background: #2a2218; border-color: var(--border-2); color: var(--text); }
+
+.at-heat-toggle--on {
+  background: #1b2417;
+  border-color: #5c845660;
+  color: #9dbf95;
+  box-shadow: 0 0 10px #5c845630;
+}
+
+.at-heat-legend {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.at-heat-legend-label {
+  font-size: 9px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+/* Tło wstrzykiwane z RAMP_GRADIENT_CSS — jedno źródło stopni (practiceHeat.js),
+   żeby legenda nie rozjechała się z washem na taktach. */
+.at-heat-legend-gradient {
+  width: 56px;
+  height: 6px;
+  border-radius: 3px;
+}
 
 /* ── AlphaTab cursors ────────────────────────────────────────── */
 .at-cursor-bar {
@@ -501,7 +625,7 @@
 .at-saved-loops-panel {
   position: fixed;
   bottom: 76px;
-  left: 28px;
+  left: calc(28px + var(--sidebar-w, 0px));
   z-index: 900;
   width: 280px;
 
@@ -695,6 +819,72 @@
 .at-track-select-dropdown:focus {
   outline: none;
   border-color: var(--accent);
+}
+
+/* Solo — słychać tylko wybraną ścieżkę */
+.at-track-solo {
+  background: var(--surface-3);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text-muted);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  padding: 5px 9px;
+  line-height: 1;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, box-shadow 0.15s, color 0.15s;
+  flex-shrink: 0;
+  font-family: inherit;
+}
+.at-track-solo:disabled { opacity: 0.3; cursor: default; pointer-events: none; }
+.at-track-solo:not(:disabled):hover { background: #2a2218; border-color: var(--border-2); color: var(--text); }
+.at-track-solo--on {
+  background: #241a10;
+  border-color: #6f93b060;
+  color: #9bb6c8;
+  box-shadow: 0 0 10px #6f93b030;
+}
+
+/* Przester */
+.at-dist {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.at-dist-toggle {
+  background: var(--surface-3);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text-muted);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  padding: 5px 9px;
+  line-height: 1;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, box-shadow 0.15s, color 0.15s;
+  flex-shrink: 0;
+  font-family: inherit;
+}
+.at-dist-toggle:hover { background: #2a2218; border-color: var(--border-2); color: var(--text); }
+.at-dist-toggle--on {
+  background: #2a1410;
+  border-color: #b0704a60;
+  color: #d09a6e;
+  box-shadow: 0 0 10px #b0704a30;
+}
+/* włączony, ale nie gra — bo słychać też inne instrumenty */
+.at-dist-toggle--idle {
+  box-shadow: none;
+  opacity: 0.55;
+}
+
+.at-dist-drive {
+  width: 70px;
+  accent-color: #b0704a;
+  cursor: pointer;
 }
 
 @media (max-width: 640px) {

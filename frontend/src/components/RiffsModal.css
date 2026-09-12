@@ -1,0 +1,307 @@
+/* ── Modal analizy riffów — paleta spójna z HeatmapModal ─────────────────── */
+.rf-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(8, 6, 4, 0.80);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  animation: rf-fade-in 0.15s ease;
+}
+
+@keyframes rf-fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+.rf-panel {
+  background: #17130d;
+  border: 1px solid #3a2e22;
+  border-radius: 16px;
+  box-shadow: 0 32px 80px rgba(0,0,0,0.7), 0 0 0 1px #ffffff08, 0 0 60px #b86a3e10, inset 0 0 80px #00000033;
+  width: min(980px, calc(100vw - 32px));
+  max-height: calc(100vh - 48px);
+  display: flex;
+  flex-direction: column;
+  animation: rf-slide-up 0.18s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@keyframes rf-slide-up {
+  from { opacity: 0; transform: translateY(12px) scale(0.97); }
+  to   { opacity: 1; transform: translateY(0)   scale(1);     }
+}
+
+/* ── Header ──────────────────────────────────────────────────────────────── */
+.rf-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 18px 20px 14px;
+  border-bottom: 1px solid #2a2419;
+}
+
+.rf-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: #cabfa8;
+  letter-spacing: 0.3px;
+  margin-right: auto;
+}
+
+.rf-track-name {
+  font-size: 12px;
+  color: #8a7c62;
+}
+
+.rf-track-select {
+  background: #211b13;
+  border: 1px solid #3a2e22;
+  border-radius: 8px;
+  color: #cabfa8;
+  font-family: inherit;
+  font-size: 12px;
+  padding: 5px 8px;
+  max-width: 200px;
+  cursor: pointer;
+}
+.rf-track-select:focus { outline: none; border-color: #5a4630; }
+
+.rf-close {
+  background: none;
+  border: none;
+  color: #5a4e3c;
+  font-size: 16px;
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  border-radius: 6px;
+  transition: color 0.12s, background 0.12s;
+  line-height: 1;
+  padding: 0;
+}
+.rf-close:hover { color: #e7ddc9; background: #ffffff12; }
+
+/* ── Podsumowanie ────────────────────────────────────────────────────────── */
+.rf-summary {
+  display: flex;
+  gap: 22px;
+  padding: 14px 20px;
+  border-bottom: 1px solid #2a2419;
+}
+
+.rf-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.rf-stat-value {
+  font-size: 20px;
+  font-weight: 700;
+  color: #e7ddc9;
+  line-height: 1.15;
+}
+
+.rf-stat-label {
+  font-size: 11px;
+  color: #8a7c62;
+  letter-spacing: 0.2px;
+}
+
+/* ── Lista riffów ────────────────────────────────────────────────────────── */
+.rf-body {
+  padding: 14px 20px 20px;
+  overflow-y: auto;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  align-items: start;
+}
+
+/* Elementy pełnej szerokości w siatce */
+.rf-empty,
+.rf-family,
+.rf-hidden-note { grid-column: 1 / -1; }
+
+/* ── Rodzina podobnych riffów (warianty jednego motywu) ──────────────────── */
+.rf-family {
+  border: 1px dashed #5a4630;
+  border-radius: 12px;
+  padding: 10px 12px 12px;
+  background: #19140e;
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  min-width: 0;
+}
+
+.rf-family-head {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+}
+
+.rf-family-badge {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+  color: var(--accent, #b86a3e);
+  background: #b86a3e1a;
+  border: 1px solid #b86a3e40;
+  border-radius: 20px;
+  padding: 2px 10px;
+}
+
+.rf-family-info {
+  font-size: 11.5px;
+  color: #8a7c62;
+}
+
+.rf-family-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  align-items: start;
+  min-width: 0;
+}
+
+/* Karty wewnątrz rodziny odcinają się od jej tła */
+.rf-family .rf-group {
+  background: #1f1913;
+  border-color: #322818;
+}
+
+@media (max-width: 760px) {
+  .rf-family-grid { grid-template-columns: 1fr; }
+}
+
+@media (max-width: 760px) {
+  .rf-body { grid-template-columns: 1fr; }
+}
+
+.rf-empty {
+  color: #8a7c62;
+  font-size: 13px;
+  margin: 8px 0;
+}
+
+.rf-group {
+  background: #1d1712;
+  border: 1px solid #2a2419;
+  border-radius: 10px;
+  padding: 11px 13px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  /* Nie pozwól zawartości (render alphaTab) rozpychać kolumny gridu —
+     bez tego szerokość karty i renderu nakręcają się nawzajem w nieskończoność */
+  min-width: 0;
+}
+
+.rf-group-head {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+}
+
+.rf-group-name {
+  font-size: 13px;
+  font-weight: 700;
+  color: #e7ddc9;
+}
+
+.rf-group-count {
+  font-size: 11px;
+  color: #8a7c62;
+}
+.rf-group-count--repeat {
+  color: var(--accent, #b86a3e);
+  font-weight: 600;
+}
+
+/* Miniatura taktu renderowana przez alphaTab — to samo jasne tło co główna
+   tabulatura (.at-surface), żeby riff wyglądał identycznie jak w playerze. */
+.rf-snippet {
+  background: #efe7d6;
+  border-radius: 8px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  min-height: 56px;
+  padding: 2px 6px;
+  width: 100%;
+  max-width: 100%;
+}
+.rf-snippet > * { display: block; }
+
+.rf-group-ranges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.rf-range-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: #211b13;
+  border: 1px solid #3a2e22;
+  border-radius: 20px;
+  color: #cabfa8;
+  font-family: inherit;
+  font-size: 11.5px;
+  padding: 4px 11px;
+  cursor: pointer;
+  transition: background 0.12s, border-color 0.12s, color 0.12s;
+}
+.rf-range-chip:hover {
+  background: #2a2015;
+  border-color: var(--accent, #b86a3e);
+  color: #e7ddc9;
+}
+.rf-range-chip svg { font-size: 11px; opacity: 0.7; }
+
+.rf-group-similar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.rf-similar-chip {
+  background: none;
+  border: 1px dashed #46392a;
+  border-radius: 20px;
+  color: #8a7c62;
+  font-family: inherit;
+  font-size: 11px;
+  padding: 3px 10px;
+  cursor: pointer;
+  transition: color 0.12s, border-color 0.12s;
+}
+.rf-similar-chip:hover {
+  color: #cabfa8;
+  border-color: #5a4630;
+}
+
+/* Wariant "kształtowy" — ten sam ruch po gryfie, przesunięte progi */
+.rf-similar-chip--shape {
+  border-style: dotted;
+  border-color: #b86a3e50;
+  color: #a4784f;
+}
+.rf-similar-chip--shape:hover {
+  color: #d99a6a;
+  border-color: #b86a3e90;
+}
+
+.rf-hidden-note {
+  color: #6b5f4a;
+  font-size: 11.5px;
+  margin: 4px 0 0;
+}

@@ -1,5 +1,6 @@
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
+import { IconGuitar, IconChartLine } from './icons'
 import './Navbar.css'
 
 export default function Navbar() {
@@ -14,7 +15,7 @@ export default function Navbar() {
   return (
     <nav className="navbar">
       <Link to="/" className="navbar-brand">
-        <span className="brand-icon">🎸</span>
+        <span className="brand-icon"><IconGuitar /></span>
         <span className="brand-name">GuitarTab</span>
       </Link>
 
@@ -22,7 +23,7 @@ export default function Navbar() {
         {user ? (
           <>
             <Link to="/progress" className="btn btn-ghost btn-sm navbar-progress-link">
-              📈 Progresja
+              <IconChartLine /> Progresja
             </Link>
             <Link to="/upload" className="btn btn-primary btn-sm">
               + Upload Tab

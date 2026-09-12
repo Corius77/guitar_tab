@@ -1,4 +1,5 @@
 import { Link } from 'react-router-dom'
+import { IconPlay } from './icons'
 import './SongCard.css'
 
 const DIFF_LABELS = ['', 'Beginner', 'Easy', 'Intermediate', 'Hard', 'Expert']
@@ -22,7 +23,7 @@ export default function SongCard({ song }) {
             {DIFF_LABELS[song.difficulty]}
           </span>
         )}
-        <span className="play-count">▶ {song.play_count.toLocaleString()}</span>
+        <span className="play-count"><IconPlay /> {song.play_count.toLocaleString()}</span>
       </div>
     </Link>
   )

@@ -61,6 +61,7 @@
 }
 .drop-icon { font-size: 32px; }
 .drop-file-name { color: #b86a3e; font-weight: 600; }
+.drop-hint { color: var(--text-muted); font-weight: 400; font-size: 12px; }
 
 .form-row {
   display: grid;

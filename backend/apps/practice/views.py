@@ -18,6 +18,9 @@ from .serializers import (
     StartSessionSerializer,
 )
 
+# Okno "ostatnio" dla heatmapy świeżości — w dniach.
+RECENT_DAYS = 30
+
 
 class StartSessionView(CreateAPIView):
     """POST /api/practice/sessions/ — rozpoczyna sesję ćwiczeń."""
@@ -89,18 +92,37 @@ class SongStatsView(APIView):
             .first()
         )
 
-        # Heatmapa: measure → suma loop_count
+        # Heatmapy: measure → ile razy takt był grany, czyli suma loop_count
+        # (frontend wysyła przejścia przez takt — pętle i zwykłe granie tak
+        # samo) w całości i w oknie RECENT_DAYS,
+        # oraz measure → data ostatniego ćwiczenia (z started_at sesji).
+        recent_cutoff = timezone.now() - timedelta(days=RECENT_DAYS)
         loop_events = LoopEvent.objects.filter(session__in=sessions)
         measure_heat: dict[int, int] = {}
-        for le in loop_events.values('measure_start', 'measure_end', 'loop_count'):
+        measure_heat_recent: dict[int, int] = {}
+        measure_last: dict[int, object] = {}
+        for le in loop_events.values(
+            'measure_start', 'measure_end', 'loop_count', 'session__started_at'
+        ):
+            started = le['session__started_at']
+            is_recent = started >= recent_cutoff
             for m in range(le['measure_start'], le['measure_end'] + 1):
                 measure_heat[m] = measure_heat.get(m, 0) + le['loop_count']
+                if is_recent:
+                    measure_heat_recent[m] = measure_heat_recent.get(m, 0) + le['loop_count']
+                if m not in measure_last or started > measure_last[m]:
+                    measure_last[m] = started
 
-        # Pokrycie: unikalne takty ćwiczone pętlą / wszystkie takty
+        # Pokrycie: unikalne takty, które w ogóle były grane / wszystkie takty
         if total_bars:
             coverage = round(len(measure_heat) / total_bars * 100, 1) if measure_heat else 0.0
+            coverage_recent = (
+                round(len(measure_heat_recent) / total_bars * 100, 1)
+                if measure_heat_recent else 0.0
+            )
         else:
             coverage = None
+            coverage_recent = None
 
         # Ostatnie sesje
         recent = [
@@ -118,8 +140,14 @@ class SongStatsView(APIView):
             'total_seconds': total_seconds,
             'best_bpm_percent': best_bpm,
             'coverage_percent': coverage,
+            'coverage_recent_percent': coverage_recent,
             'total_bars': total_bars,
             'measure_heat': {str(k): v for k, v in measure_heat.items()},
+            'measure_heat_recent': {str(k): v for k, v in measure_heat_recent.items()},
+            'measure_last_practiced': {
+                str(k): v.isoformat() for k, v in measure_last.items()
+            },
+            'recent_days': RECENT_DAYS,
             'recent_sessions': recent,
         })
 

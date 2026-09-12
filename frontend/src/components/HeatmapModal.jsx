@@ -1,5 +1,6 @@
 import { useEffect } from 'react'
 import MeasureHeatmap from './MeasureHeatmap'
+import { IconClose } from './icons'
 import './HeatmapModal.css'
 
 export default function HeatmapModal({ stats, onClose }) {
@@ -15,17 +16,21 @@ export default function HeatmapModal({ stats, onClose }) {
 
         <div className="hm-header">
           <span className="hm-title">Statystyki ćwiczeń</span>
-          <button className="hm-close" onClick={onClose} title="Zamknij (Esc)">✕</button>
+          <button className="hm-close" onClick={onClose} title="Zamknij (Esc)"><IconClose /></button>
         </div>
 
         <div className="hm-body">
           <MeasureHeatmap
             totalBars={stats.total_bars}
-            measureHeat={stats.measure_heat ?? {}}
+            measureHeat={stats.measure_heat}
+            measureHeatRecent={stats.measure_heat_recent}
+            measureLastPracticed={stats.measure_last_practiced}
+            recentDays={stats.recent_days}
             totalSessions={stats.total_sessions}
             totalSeconds={stats.total_seconds}
             bestBpmPercent={stats.best_bpm_percent}
             coveragePercent={stats.coverage_percent}
+            coverageRecentPercent={stats.coverage_recent_percent}
           />
         </div>
 

@@ -1,8 +1,21 @@
-import { useRef, useEffect, useState, useCallback } from 'react'
+import { useRef, useEffect, useState, useCallback, useMemo } from 'react'
+import {
+  RAMP_GRADIENT_CSS,
+  DEFAULT_RECENT_DAYS,
+  rampColorCss,
+  daysSince,
+  formatDaysAgo,
+  freshnessFromDays,
+  heatScale,
+  pickMeasure,
+} from '../utils/practiceHeat'
 import './MeasureHeatmap.css'
 
 const GAP = 2
 const RADIUS = 2
+
+// Stała pusta mapa — żeby brak propsa nie tworzył nowej referencji co render.
+const EMPTY = {}
 
 /** Mapuje intensywność 0–1 na kolor sepiowej skali (przygaszona oliwka → bursztyn → gorąca rdza). */
 function heatColor(intensity) {
@@ -37,7 +50,7 @@ function barRect(i, total, canvasW) {
   return { x, w: xNext - x - GAP }
 }
 
-function drawHeatmap(canvas, totalBars, measureHeat, maxHeat, emptyColor) {
+function drawHeatmap(canvas, totalBars, colorAt, emptyColor) {
   const dpr = window.devicePixelRatio || 1
   const W = canvas.offsetWidth
   const H = canvas.offsetHeight
@@ -50,9 +63,7 @@ function drawHeatmap(canvas, totalBars, measureHeat, maxHeat, emptyColor) {
   ctx.scale(dpr, dpr)
 
   for (let i = 0; i < totalBars; i++) {
-    const m = i + 1
-    const heat = Number(measureHeat[m] ?? measureHeat[String(m)] ?? 0)
-    const color = heatColor(heat / maxHeat) ?? emptyColor
+    const color = colorAt(i + 1) ?? emptyColor
 
     const { x, w } = barRect(i, totalBars, W)
     if (w <= 0) continue
@@ -64,22 +75,45 @@ function drawHeatmap(canvas, totalBars, measureHeat, maxHeat, emptyColor) {
   }
 }
 
-export default function MeasureHeatmap({ totalBars, measureHeat, totalSessions, totalSeconds, bestBpmPercent, coveragePercent }) {
-  if (!totalBars || totalBars === 0) return null
-
-  const maxHeat = Math.max(...Object.values(measureHeat).map(Number), 1)
-
+export default function MeasureHeatmap({
+  totalBars,
+  measureHeat = EMPTY,
+  measureHeatRecent = EMPTY,
+  measureLastPracticed = EMPTY,
+  recentDays = DEFAULT_RECENT_DAYS,
+  totalSessions,
+  totalSeconds,
+  bestBpmPercent,
+  coveragePercent,
+  coverageRecentPercent,
+}) {
   const canvasRef = useRef(null)
-  const [tooltip, setTooltip] = useState(null) // { x, text }
+  const emptyColorRef = useRef('#2a231c')  // kolor pustego paska, czytany z CSS
+  const [tooltip, setTooltip] = useState(null)  // { x, y, text }
+  const [mode, setMode] = useState('heat')      // 'heat' = intensywność, 'recent' = świeżość
 
-  // Kolor pustego paska — odczytujemy z CSS
-  const emptyColorRef = useRef('#2a231c')
+  // Szczyt skali ten sam co przy kolorowaniu taktów na tabulaturze — inaczej
+  // te same dane wyglądałyby inaczej w dwóch miejscach.
+  const maxHeat = useMemo(
+    () => heatScale(Math.max(...Object.values(measureHeat).map(Number), 1)),
+    [measureHeat],
+  )
+
+  // Kolor paska zależnie od trybu: sepia wg liczby przejść albo skala wieku.
+  // Skala wieku jest ta sama, co przy kolorowaniu taktów na tabulaturze.
+  const colorAt = useCallback((m) => {
+    if (mode === 'recent') {
+      const f = freshnessFromDays(daysSince(pickMeasure(measureLastPracticed, m)), recentDays)
+      return f <= 0 ? null : rampColorCss(f)
+    }
+    return heatColor(Number(pickMeasure(measureHeat, m) ?? 0) / maxHeat)
+  }, [mode, measureHeat, measureLastPracticed, maxHeat, recentDays])
 
   const redraw = useCallback(() => {
     const canvas = canvasRef.current
     if (!canvas) return
-    drawHeatmap(canvas, totalBars, measureHeat, maxHeat, emptyColorRef.current)
-  }, [totalBars, measureHeat, maxHeat])
+    drawHeatmap(canvas, totalBars, colorAt, emptyColorRef.current)
+  }, [totalBars, colorAt])
 
   useEffect(() => {
     const canvas = canvasRef.current
@@ -95,22 +129,40 @@ export default function MeasureHeatmap({ totalBars, measureHeat, totalSessions, 
     return () => ro.disconnect()
   }, [redraw])
 
+  if (!totalBars || totalBars === 0) return null
+
   const handleMouseMove = (e) => {
     const canvas = canvasRef.current
     if (!canvas) return
     const rect = canvas.getBoundingClientRect()
     const mouseX = e.clientX - rect.left
-    const W = rect.width
 
     // Znajdź pasek pod kursorem
-    const bar = Math.floor(mouseX * totalBars / (W + GAP))
+    const bar = Math.floor(mouseX * totalBars / (rect.width + GAP))
     const m = Math.max(1, Math.min(totalBars, bar + 1))
-    const heat = Number(measureHeat[m] ?? measureHeat[String(m)] ?? 0)
-    const text = heat > 0
-      ? `Takt ${m}: ${heat} ${heat === 1 ? 'pętla' : 'pętle'}`
-      : `Takt ${m}`
+
+    let text
+    if (mode === 'recent') {
+      const days = daysSince(pickMeasure(measureLastPracticed, m))
+      const rec = Number(pickMeasure(measureHeatRecent, m) ?? 0)
+      if (days == null) {
+        text = `Takt ${m} · niećwiczony`
+      } else if (rec > 0) {
+        text = `Takt ${m} · ${formatDaysAgo(days)} · zagrany ${rec}× / ${recentDays} dni`
+      } else {
+        text = `Takt ${m} · ${formatDaysAgo(days)}`
+      }
+    } else {
+      const heat = Number(pickMeasure(measureHeat, m) ?? 0)
+      text = heat > 0
+        ? `Takt ${m}: zagrany ${heat}×`
+        : `Takt ${m}`
+    }
     setTooltip({ x: e.clientX, y: e.clientY, text })
   }
+
+  const isRecent = mode === 'recent'
+  const coverageValue = isRecent ? coverageRecentPercent : coveragePercent
 
   return (
     <div className="mh-wrap">
@@ -135,15 +187,30 @@ export default function MeasureHeatmap({ totalBars, measureHeat, totalSessions, 
         <div className="mh-stat-sep" />
         <div className="mh-stat">
           <span className="mh-stat-value">
-            {coveragePercent != null ? `${Math.round(coveragePercent)}%` : '—'}
+            {coverageValue != null ? `${Math.round(coverageValue)}%` : '—'}
           </span>
-          <span className="mh-stat-label">pokrycia</span>
+          <span className="mh-stat-label">
+            {isRecent ? `pokrycia / ${recentDays} dni` : 'pokrycia'}
+          </span>
         </div>
       </div>
 
       {/* Heatmapa taktów */}
       <div className="mh-header">
-        <span className="mh-title">Intensywność ćwiczeń</span>
+        <div className="mh-modes">
+          <button
+            className={`mh-mode${!isRecent ? ' is-active' : ''}`}
+            onClick={() => setMode('heat')}
+          >
+            Intensywność
+          </button>
+          <button
+            className={`mh-mode${isRecent ? ' is-active' : ''}`}
+            onClick={() => setMode('recent')}
+          >
+            Ostatnio
+          </button>
+        </div>
         <span className="mh-subtitle">{totalBars} taktów</span>
       </div>
 
@@ -166,9 +233,12 @@ export default function MeasureHeatmap({ totalBars, measureHeat, totalSessions, 
 
       {/* Legenda */}
       <div className="mh-legend">
-        <span className="mh-legend-label">Rzadko</span>
-        <div className="mh-legend-gradient" />
-        <span className="mh-legend-label">Często</span>
+        <span className="mh-legend-label">{isRecent ? 'Dawno' : 'Rzadko'}</span>
+        <div
+          className="mh-legend-gradient"
+          style={isRecent ? { background: RAMP_GRADIENT_CSS, opacity: 1 } : undefined}
+        />
+        <span className="mh-legend-label">{isRecent ? 'Dziś' : 'Często'}</span>
       </div>
     </div>
   )

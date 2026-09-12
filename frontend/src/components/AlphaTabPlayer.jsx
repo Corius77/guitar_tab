@@ -2,12 +2,52 @@ import { useEffect, useRef, useState } from 'react'
 import './AlphaTabPlayer.css'
 import KeyboardShortcutsModal from './KeyboardShortcutsModal'
 import RecordingPanel from './RecordingPanel'
+import RiffsModal from './RiffsModal'
+import { IconPlay, IconPause, IconStop, IconDrum, IconReset, IconLoop, IconClose, IconBookmark, IconWarning, IconMusicNote } from './icons'
+import {
+  createDistortionChain,
+  getSynthAudioContext,
+  getSynthOutputNode,
+  hasDistortionTrack,
+  shouldEngageDistortion,
+} from '../audio/distortion'
+import { paintBarHeat, clearBarHeat } from './barHeatOverlay'
+import { RAMP_GRADIENT_CSS, makeIntensityAt } from '../utils/practiceHeat'
 import { useAuth } from '../context/AuthContext'
+import { usePlayer } from '../context/PlayerContext'
 import { startSession, endSession, getSavedLoops, createSavedLoop, deleteSavedLoop } from '../api/practice'
 
 const BPM_MIN = 20
 const BPM_MAX = 300
 const ALPHATAB_METRONOME_EVENT_TYPE = 242
+
+// Mapa takt → ile razy zagrany, spakowana w zakresy sąsiednich taktów o tej
+// samej liczbie przejść. Backend trzyma to jako LoopEventy (takt od–do × ile),
+// więc jedno przegranie utworu to zwykle jeden wpis, a nie sto.
+function barCountsToEvents(counts) {
+  const entries = [...counts.entries()]
+    .filter(([bar, count]) => bar > 0 && count > 0)
+    .sort((a, b) => a[0] - b[0])
+
+  const events = []
+  let run = null
+  for (const [bar, count] of entries) {
+    if (run && bar === run.measure_end + 1 && count === run.loop_count) {
+      run.measure_end = bar
+    } else {
+      run = { measure_start: bar, measure_end: bar, loop_count: count }
+      events.push(run)
+    }
+  }
+  return events
+}
+
+// Klawisze, przy których przytrzymanie ma sens (regulacja wartości / przewijanie).
+// Reszta to przełączniki — tam auto-powtarzanie tylko miga stanem.
+const REPEATABLE_KEYS = new Set([
+  '=', '+', '-', '_', '[', ']', '{', '}',
+  'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight',
+])
 
 // ── Web Audio metronome ────────────────────────────────────────────────────
 // `when` (opcjonalne) — czas audioCtx, na który zaplanować klik (sec).
@@ -66,13 +106,164 @@ function saveTrackIndex(songId, idx) {
   } catch {}
 }
 
+// ── Solo: słyszalna tylko wybrana ścieżka ──────────────────────────────────
+// Globalna preferencja (nie per utwór) — 'true' / brak klucza.
+const SOLO_STORAGE_KEY = 'guitarTab.soloSelectedTrack'
+
+function loadSoloPref() {
+  try {
+    return localStorage.getItem(SOLO_STORAGE_KEY) === 'true'
+  } catch {
+    return false
+  }
+}
+
+function saveSoloPref(on) {
+  try { localStorage.setItem(SOLO_STORAGE_KEY, on ? 'true' : 'false') } catch {}
+}
+
+// ── Podkład: wybrana ścieżka wyciszona, gra reszta zespołu ─────────────────
+// Odwrotność sola — patrzysz na swoją tabulaturę, słyszysz backing z syntezatora.
+// Globalna preferencja (nie per utwór) — 'true' / brak klucza.
+const BACKING_STORAGE_KEY = 'guitarTab.backingTrack'
+
+function loadBackingPref() {
+  try {
+    return localStorage.getItem(BACKING_STORAGE_KEY) === 'true'
+  } catch {
+    return false
+  }
+}
+
+function saveBackingPref(on) {
+  try { localStorage.setItem(BACKING_STORAGE_KEY, on ? 'true' : 'false') } catch {}
+}
+
+// ── Głośność (globalnie) i tempo (per utwór) ───────────────────────────────
+const MASTER_VOLUME_STORAGE_KEY = 'guitarTab.masterVolume'
+const METRO_VOLUME_STORAGE_KEY = 'guitarTab.metronomeVolume'
+const BPM_STORAGE_KEY = 'guitarTab.bpmBySong'
+
+function loadVolume(key) {
+  try {
+    const raw = parseFloat(localStorage.getItem(key))
+    return isNaN(raw) ? 1 : Math.max(0, Math.min(1, raw))
+  } catch {
+    return 1
+  }
+}
+
+function saveVolume(key, v) {
+  try { localStorage.setItem(key, String(v)) } catch {}
+}
+
+// Zapamiętane tempo ćwiczenia — wracasz do utworu i masz to samo BPM co ostatnio.
+// Zwraca liczbę albo null (brak wpisu / śmieci).
+function loadSavedBpm(songId) {
+  if (songId == null) return null
+  try {
+    const raw = localStorage.getItem(BPM_STORAGE_KEY)
+    if (!raw) return null
+    const v = JSON.parse(raw)[String(songId)]
+    return typeof v === 'number' && v >= BPM_MIN && v <= BPM_MAX ? v : null
+  } catch {
+    return null
+  }
+}
+
+function saveBpm(songId, bpm) {
+  if (songId == null) return
+  try {
+    const raw = localStorage.getItem(BPM_STORAGE_KEY)
+    const map = raw ? JSON.parse(raw) : {}
+    map[String(songId)] = bpm
+    localStorage.setItem(BPM_STORAGE_KEY, JSON.stringify(map))
+  } catch {}
+}
+
+// ── Odliczanie przed startem pętli ─────────────────────────────────────────
+const COUNT_IN_STORAGE_KEY = 'guitarTab.loopCountIn'
+
+function loadCountInPref() {
+  try {
+    return localStorage.getItem(COUNT_IN_STORAGE_KEY) === 'true'
+  } catch {
+    return false
+  }
+}
+
+function saveCountInPref(on) {
+  try { localStorage.setItem(COUNT_IN_STORAGE_KEY, on ? 'true' : 'false') } catch {}
+}
+
+// ── Kolorowanie ostatnio ćwiczonych taktów na tabulaturze ──────────────────
+const BAR_HEAT_STORAGE_KEY = 'guitarTab.barHeat'
+
+function loadBarHeatPref() {
+  try {
+    // domyślnie WŁĄCZONE — cały sens tej funkcji to widzieć ślady bez klikania
+    return localStorage.getItem(BAR_HEAT_STORAGE_KEY) !== 'false'
+  } catch {
+    return true
+  }
+}
+
+function saveBarHeatPref(on) {
+  try { localStorage.setItem(BAR_HEAT_STORAGE_KEY, on ? 'true' : 'false') } catch {}
+}
+
+// ── Przester na ścieżkach z distortion guitar ──────────────────────────────
+const DIST_STORAGE_KEY = 'guitarTab.distortionFx'
+const DIST_DRIVE_STORAGE_KEY = 'guitarTab.distortionDrive'
+const DEFAULT_DRIVE = 0.55
+
+function loadDistPref() {
+  try {
+    return localStorage.getItem(DIST_STORAGE_KEY) === 'true'
+  } catch {
+    return false
+  }
+}
+
+function loadDistDrive() {
+  try {
+    const raw = parseFloat(localStorage.getItem(DIST_DRIVE_STORAGE_KEY))
+    return isNaN(raw) ? DEFAULT_DRIVE : Math.max(0, Math.min(1, raw))
+  } catch {
+    return DEFAULT_DRIVE
+  }
+}
+
+function saveDistPref(on) {
+  try { localStorage.setItem(DIST_STORAGE_KEY, on ? 'true' : 'false') } catch {}
+}
+
+function saveDistDrive(drive) {
+  try { localStorage.setItem(DIST_DRIVE_STORAGE_KEY, String(drive)) } catch {}
+}
+
+// Ustawia miks wg trybu: solo → słychać tylko wybraną ścieżkę,
+// podkład → słychać wszystko POZA wybraną (grasz ją sam na żywo).
+// idx === null (wszystkie ścieżki) → oba tryby bez sensu, czyścimy.
+function applyMixToApi(at, score, solo, backing, idx) {
+  if (!at || !score?.tracks?.length) return
+  const tracks = [...score.tracks]
+  try {
+    at.changeTrackSolo(tracks, false)
+    at.changeTrackMute(tracks, false)
+    if (idx == null || !tracks[idx]) return
+    if (solo) at.changeTrackSolo([tracks[idx]], true)
+    else if (backing) at.changeTrackMute([tracks[idx]], true)
+  } catch {}
+}
+
 // ── Component ──────────────────────────────────────────────────────────────
-export default function AlphaTabPlayer({ fileUrl, songId, onStatsChange }) {
+export default function AlphaTabPlayer({ fileUrl, songId, stats, onStatsChange }) {
   const containerRef = useRef(null)
   const apiRef = useRef(null)
   const originalBpmRef = useRef(null)
   const metronomeOnRef = useRef(false)
-  const metronomeVolumeRef = useRef(1)
+  const metronomeVolumeRef = useRef(loadVolume(METRO_VOLUME_STORAGE_KEY))
   const audioCtxRef = useRef(null)
 
   // Bar positions: array of { index: number, start: number (tick) }
@@ -81,17 +272,40 @@ export default function AlphaTabPlayer({ fileUrl, songId, onStatsChange }) {
   // Refy do użycia w handlerze klawiszy (bez stale closures)
   const readyRef = useRef(false)
   const bpmRef = useRef(null)
-  const masterVolumeRef = useRef(1)
+  const masterVolumeRef = useRef(loadVolume(MASTER_VOLUME_STORAGE_KEY))
   const loopOnRef = useRef(false)
   const loopStartRef = useRef(1)
   const loopEndRef = useRef(1)
   const totalBarsRef = useRef(0)
+  const soloTrackRef = useRef(false)
+  const backingTrackRef = useRef(false)
+  const selectedTrackIndexRef = useRef(null)
+  const distortionOnRef = useRef(false)
+  const distortionChainRef = useRef(null)   // { input, output, setDrive, dispose }
+  const distortionRoutedNodeRef = useRef(null) // węzeł alphaTab, który przekierowaliśmy
+
+  // Odliczanie przed startem pętli
+  const countInOnRef = useRef(false)
+  const countInTimerRef = useRef(null)
+  const requestPlayPauseRef = useRef(null)
+  const cancelCountInRef = useRef(null)
   // Refy na funkcje — aktualizowane przy każdym renderze
   const applyBpmRef = useRef(null)
+  const toggleSoloRef = useRef(null)
+  const toggleBackingRef = useRef(null)
+  const toggleDistortionRef = useRef(null)
+  const syncDistortionRef = useRef(null)
+  const scheduleDistortionRoutingRef = useRef(null)
   const getAudioCtxRef = useRef(null)
   const toggleLoopRef = useRef(null)
   const clearLoopRef = useRef(null)
   const applyLoopRangeRef = useRef(null)
+  const seekToBarRef = useRef(null)
+
+  // Otwarte okna — przy nich klawisze należą do okna, nie do playera
+  const showShortcutsRef = useRef(false)
+  const showRiffsRef = useRef(false)
+  const showSavedLoopsRef = useRef(false)
 
   // Drag-to-select na tabulaturze
   const dragStartBarRef = useRef(null)
@@ -99,23 +313,21 @@ export default function AlphaTabPlayer({ fileUrl, songId, onStatsChange }) {
   // Aktualnie grany takt (1-indexed) — używany do pętli "od bieżącego taktu"
   const currentBarRef = useRef(0)
 
-  // Standalone metronome — działa gdy utwór NIE jest odtwarzany (gdy gra,
-  // klikanie sterowane jest eventami MIDI z alphaTab, by zachować synchronizację).
-  const standaloneTimerRef = useRef(null)
-  const standaloneNextBeatTimeRef = useRef(0)
-  const standaloneBeatCounterRef = useRef(0)
+  // Metrum pierwszego taktu — akcent na "raz" przy odliczaniu przed pętlą
   const timeSigNumeratorRef = useRef(4)
 
   // Ścieżki (tracki) pliku GP
   const scoreRef = useRef(null)
+
+  // ── Sekcje / nawigacja z sidebara ───────────────────────────────────────────
+  const { setSections, registerSeek, clearPlayer } = usePlayer()
 
   // ── Śledzenie sesji ────────────────────────────────────────────────────────
   const { user } = useAuth()
   const sessionIdRef = useRef(null)         // id aktywnej sesji backendu
   const playingRef = useRef(false)          // czy aktualnie gra
   const sessionStartedRef = useRef(false)   // czy sesja została już wystartowana
-  const loopCountsRef = useRef({})          // klucz "start-end" → liczba pętli
-  const lastPositionRef = useRef(0)         // poprzedni currentTime (ms)
+  const lastTickRef = useRef(-1)            // poprzedni tick — wykrywa skok wstecz
 
   const [ready, setReady] = useState(false)
   const [playing, setPlaying] = useState(false)
@@ -123,14 +335,17 @@ export default function AlphaTabPlayer({ fileUrl, songId, onStatsChange }) {
   const [error, setError] = useState('')
   const [currentTime, setCurrentTime] = useState(0)
   const [endTime, setEndTime] = useState(0)
-  const [masterVolume, setMasterVolume] = useState(1)
+  const [masterVolume, setMasterVolume] = useState(() => loadVolume(MASTER_VOLUME_STORAGE_KEY))
   const [bpm, setBpm] = useState(null)
   const [bpmInput, setBpmInput] = useState('')
   const [metronomeOn, setMetronomeOn] = useState(false)
-  const [metronomeVolume, setMetronomeVolume] = useState(1)
+  const [metronomeVolume, setMetronomeVolume] = useState(() => loadVolume(METRO_VOLUME_STORAGE_KEY))
 
   // Modal skrótów
   const [showShortcuts, setShowShortcuts] = useState(false)
+
+  // Modal analizy riffów
+  const [showRiffs, setShowRiffs] = useState(false)
 
   // Loop — zakres taktów (1-indexed)
   const [totalBars, setTotalBars] = useState(0)
@@ -148,26 +363,91 @@ export default function AlphaTabPlayer({ fileUrl, songId, onStatsChange }) {
   // Ścieżki pliku GP
   const [tracks, setTracks] = useState([])
   const [selectedTrackIndex, setSelectedTrackIndex] = useState(null) // null = wszystkie
+  const [soloTrack, setSoloTrack] = useState(loadSoloPref) // słychać tylko wybraną ścieżkę
+  // Podkład — wybrana ścieżka wyciszona, gra reszta. Przy sprzecznych zapisach solo wygrywa.
+  const [backingTrack, setBackingTrack] = useState(() => loadBackingPref() && !loadSoloPref())
+
+  // Kolorowanie taktów wg tego, jak dawno były ćwiczone
+  const [barHeatOn, setBarHeatOn] = useState(loadBarHeatPref)
+  // Takty zagrane w TEJ sesji (takt → liczba przejść) — jeszcze nie ma ich
+  // w `stats` z backendu, a mają się doliczać do intensywności od razu.
+  // Ta sama mapa idzie potem na backend jako podsumowanie sesji.
+  const liveBarsRef = useRef(new Map())
+  const [liveBarsTick, setLiveBarsTick] = useState(0)
+
+  // Przester
+  const [distortionOn, setDistortionOn] = useState(loadDistPref)
+  const [distortionDrive, setDistortionDrive] = useState(loadDistDrive)
+  const [distortionEngaged, setDistortionEngaged] = useState(false) // czy efekt faktycznie gra
+  const [scoreHasDistortion, setScoreHasDistortion] = useState(false)
+
+  // Odliczanie przed pętlą
+  const [countInOn, setCountInOn] = useState(loadCountInPref)
+  const [countingIn, setCountingIn] = useState(false)
 
   useEffect(() => { metronomeOnRef.current = metronomeOn }, [metronomeOn])
-  useEffect(() => { metronomeVolumeRef.current = metronomeVolume }, [metronomeVolume])
+  useEffect(() => { metronomeVolumeRef.current = metronomeVolume; saveVolume(METRO_VOLUME_STORAGE_KEY, metronomeVolume) }, [metronomeVolume])
   useEffect(() => { readyRef.current = ready }, [ready])
   useEffect(() => { bpmRef.current = bpm }, [bpm])
-  useEffect(() => { masterVolumeRef.current = masterVolume }, [masterVolume])
+  useEffect(() => { masterVolumeRef.current = masterVolume; saveVolume(MASTER_VOLUME_STORAGE_KEY, masterVolume) }, [masterVolume])
   useEffect(() => { loopOnRef.current = loopOn }, [loopOn])
   useEffect(() => { loopStartRef.current = loopStart }, [loopStart])
   useEffect(() => { loopEndRef.current = loopEnd }, [loopEnd])
   useEffect(() => { totalBarsRef.current = totalBars }, [totalBars])
+  useEffect(() => { soloTrackRef.current = soloTrack }, [soloTrack])
+  useEffect(() => { backingTrackRef.current = backingTrack }, [backingTrack])
+  useEffect(() => { countInOnRef.current = countInOn }, [countInOn])
+  useEffect(() => { selectedTrackIndexRef.current = selectedTrackIndex }, [selectedTrackIndex])
+  useEffect(() => { showShortcutsRef.current = showShortcuts }, [showShortcuts])
+  useEffect(() => { showRiffsRef.current = showRiffs }, [showRiffs])
+  useEffect(() => { showSavedLoopsRef.current = showSavedLoops }, [showSavedLoops])
+
+  // ── Kolorowanie taktów na tabulaturze ─────────────────────────────────────
+  // Warstwa jest przeliczana z boundsLookup po każdym renderze alphaTab, więc
+  // handler musi widzieć świeże `stats` / `barHeatOn` — stąd refy.
+  const barHeatOnRef = useRef(barHeatOn)
+  const statsRef = useRef(stats)
+  useEffect(() => { barHeatOnRef.current = barHeatOn }, [barHeatOn])
+  useEffect(() => { statsRef.current = stats }, [stats])
+
+  const repaintBarHeat = () => {
+    const at = apiRef.current
+    const container = containerRef.current
+    if (!at || !container) return
+    if (!barHeatOnRef.current) {
+      clearBarHeat(container)
+      return
+    }
+    // `boundsLookup` przeniósł się na api w nowszych alphaTabach, ale w 1.8
+    // wciąż siedzi na rendererze — bierzemy to, co jest.
+    const lookup = at.boundsLookup ?? at.renderer?.boundsLookup
+    paintBarHeat(container, lookup, makeIntensityAt(statsRef.current, liveBarsRef.current))
+  }
+  const repaintBarHeatRef = useRef(repaintBarHeat)
+  repaintBarHeatRef.current = repaintBarHeat
+
+  // Przemaluj gdy zmienią się dane albo przełącznik (render alphaTab woła to sam)
+  useEffect(() => {
+    repaintBarHeat()
+  }, [barHeatOn, stats, liveBarsTick])
+
+  const toggleBarHeat = () => {
+    setBarHeatOn(prev => {
+      const next = !prev
+      barHeatOnRef.current = next
+      saveBarHeatPref(next)
+      return next
+    })
+  }
+  const toggleBarHeatRef = useRef(toggleBarHeat)
+  toggleBarHeatRef.current = toggleBarHeat
 
   // ── Zakończenie sesji (fire-and-forget) ───────────────────────────────────
   const buildSessionPayload = () => {
-    const loopEvents = Object.entries(loopCountsRef.current)
-      .filter(([, count]) => count > 0)
-      .map(([key, count]) => {
-        const [s, e] = key.split('-').map(Number)
-        return { measure_start: s, measure_end: e, loop_count: count }
-      })
-    loopCountsRef.current = {}
+    const loopEvents = barCountsToEvents(liveBarsRef.current)
+    // Wyczyść, żeby po odświeżeniu statystyk te same przejścia nie doliczyły
+    // się drugi raz (backend zwróci je już w measure_heat).
+    liveBarsRef.current = new Map()
     return {
       ended_at: new Date().toISOString(),
       bpm_percent: originalBpmRef.current && bpmRef.current
@@ -244,25 +524,33 @@ export default function AlphaTabPlayer({ fileUrl, songId, onStatsChange }) {
         setLoading(true)
         setError('')
         setReady(false)
-        setBpm(null)
-        setBpmInput('')
+        // Uwaga: wartości wyświetlane w dolnym pasku (bpm, totalBars) NIE są tu
+        // zerowane — dzięki temu pasek zostaje widoczny ze starymi danymi aż
+        // nowy utwór się załaduje, zamiast znikać i wskakiwać (płynne przejście).
+        // scoreLoaded nadpisze je danymi nowego utworu.
         setMetronomeOn(false)
         metronomeOnRef.current = false
         setLoopOn(false)
         setLoopStart(1)
         setLoopEnd(1)
-        setTotalBars(0)
         barPositionsRef.current = []
         originalBpmRef.current = null
         sessionIdRef.current = null
         sessionStartedRef.current = false
-        loopCountsRef.current = {}
-        lastPositionRef.current = 0
+        lastTickRef.current = -1
         playingRef.current = false
         currentBarRef.current = 0
         setTracks([])
         setSelectedTrackIndex(null)
+        selectedTrackIndexRef.current = null
+        setScoreHasDistortion(false)
+        setDistortionEngaged(false)
+        distortionChainRef.current?.dispose()
+        distortionChainRef.current = null
+        distortionRoutedNodeRef.current = null
         scoreRef.current = null
+        setShowRiffs(false)
+        liveBarsRef.current = new Map()
 
         const { AlphaTabApi } = await import('@coderline/alphatab')
         if (destroyed) return
@@ -273,6 +561,11 @@ export default function AlphaTabPlayer({ fileUrl, songId, onStatsChange }) {
         }
         containerRef.current.innerHTML = ''
 
+        // Element, który faktycznie się przewija (sidebar + main). alphaTab
+        // domyślnie scrolluje 'html,body', ale u nas overflow jest na .app-main,
+        // więc scrollToCursor() bez tego nie ruszałby widoku.
+        const scrollEl = containerRef.current.closest('.app-main') || 'html,body'
+
         const at = new AlphaTabApi(containerRef.current, {
           core: { useWorkers: true },
           player: {
@@ -280,11 +573,14 @@ export default function AlphaTabPlayer({ fileUrl, songId, onStatsChange }) {
             enableCursor: true,
             enableUserInteraction: true,
             soundFont: 'https://cdn.jsdelivr.net/npm/@coderline/alphatab@latest/dist/soundfont/sonivox.sf2',
+            scrollElement: scrollEl,
+            scrollOffsetY: -80, // trochę luzu nad taktem, żeby nie był przy samej krawędzi
           },
           display: { layoutMode: 0, staveProfile: 1 },
         })
 
         at.metronomeVolume = 0
+        at.masterVolume = masterVolumeRef.current
         at.midiEventsPlayedFilter = [ALPHATAB_METRONOME_EVENT_TYPE]
 
         at.midiEventsPlayed.on((e) => {
@@ -305,7 +601,13 @@ export default function AlphaTabPlayer({ fileUrl, songId, onStatsChange }) {
           playingRef.current = isPlaying
 
           // Auto-start sesji przy pierwszym Play
-          if (isPlaying) startSessionIfNeededRef.current()
+          if (isPlaying) {
+            startSessionIfNeededRef.current()
+            // Nowy węzeł wyjściowy syntezatora → wepnij przester od nowa
+            scheduleDistortionRoutingRef.current?.()
+          } else {
+            distortionRoutedNodeRef.current = null
+          }
         })
 
         at.playerPositionChanged.on((e) => {
@@ -313,36 +615,57 @@ export default function AlphaTabPlayer({ fileUrl, songId, onStatsChange }) {
           setCurrentTime(e.currentTime)
           setEndTime(e.endTime)
 
-          // Aktualizuj aktualnie grany takt na podstawie ticka
+          // Aktualnie grany takt + zliczanie przejść przez takt.
+          // Kolorowanie mierzy, ile razy takt faktycznie przeleciał pod
+          // kursorem — zwykłe granie liczy się tak samo jak pętle.
           const tick = e.currentTick
           if (tick != null) {
             const bars = barPositionsRef.current
+            let bar = currentBarRef.current
             for (let i = bars.length - 1; i >= 0; i--) {
               if (tick >= bars[i].start) {
-                currentBarRef.current = i + 1
+                bar = i + 1
                 break
               }
             }
+            // Skok wstecz to zawinięcie pętli albo przewinięcie — bez tego
+            // pętla na jednym takcie nie zliczyłaby się ani razu (numer taktu
+            // się nie zmienia). Doliczamy od razu, żeby kolor reagował na
+            // bieżąco, nie dopiero po przeładowaniu statystyk z backendu.
+            const jumpedBack = tick < lastTickRef.current
+            if (playingRef.current && (bar !== currentBarRef.current || jumpedBack)) {
+              liveBarsRef.current.set(bar, (liveBarsRef.current.get(bar) ?? 0) + 1)
+              setLiveBarsTick(t => t + 1)
+            }
+            currentBarRef.current = bar
+            lastTickRef.current = tick
           }
-
-          // Wykryj przewinięcie pętli (currentTime skacze wstecz)
-          const curr = e.currentTime
-          const prev = lastPositionRef.current
-          if (loopOnRef.current && playingRef.current && curr < prev - 300) {
-            const key = `${loopStartRef.current}-${loopEndRef.current}`
-            loopCountsRef.current[key] = (loopCountsRef.current[key] || 0) + 1
-          }
-          lastPositionRef.current = curr
         })
 
-        at.renderFinished.on(() => { if (!destroyed) setLoading(false) })
+        at.renderFinished.on(() => {
+          if (destroyed) return
+          setLoading(false)
+          // Nowy układ systemów → nowe bounds, warstwa musi się przeliczyć
+          repaintBarHeatRef.current()
+        })
+
+        // Syntezator dostaje kanały dopiero gdy player jest gotowy — solo/mute
+        // ustawione wcześniej mogłoby przepaść, więc dokładamy je tutaj.
+        at.playerReady.on(() => {
+          if (destroyed) return
+          applyMixToApi(at, scoreRef.current, soloTrackRef.current, backingTrackRef.current, selectedTrackIndexRef.current)
+        })
 
         at.scoreLoaded.on((score) => {
           if (destroyed) return
           const tempo = score?.tempo ?? 120
           originalBpmRef.current = tempo
-          setBpm(tempo)
-          setBpmInput(String(tempo))
+          // Zapamiętane tempo z poprzedniego razu (o ile było) zamiast oryginału
+          const savedBpm = loadSavedBpm(songId)
+          const startBpm = savedBpm ?? tempo
+          setBpm(startBpm)
+          setBpmInput(String(startBpm))
+          at.playbackSpeed = startBpm / tempo
 
           // Wyciągnij pozycje taktów
           const bars = []
@@ -351,9 +674,20 @@ export default function AlphaTabPlayer({ fileUrl, songId, onStatsChange }) {
               bars.push({ index: i, start: score.masterBars[i].start })
             }
           }
-          // Numerator z pierwszego taktu — dla akcentu w trybie standalone metronomu
+          // Numerator z pierwszego taktu — dla akcentu przy odliczaniu
           timeSigNumeratorRef.current = score?.masterBars?.[0]?.timeSignatureNumerator || 4
           barPositionsRef.current = bars
+
+          // Wyciągnij markery sekcji (Intro / Zwrotka / Refren…) dla sidebara
+          const sectionList = []
+          if (score?.masterBars) {
+            for (let i = 0; i < score.masterBars.length; i++) {
+              const sec = score.masterBars[i].section
+              const label = sec?.text || sec?.marker
+              if (label) sectionList.push({ bar: i + 1, label })
+            }
+          }
+          setSections?.(sectionList)
           const count = bars.length
           setTotalBars(count)
           setLoopStart(1)
@@ -361,6 +695,7 @@ export default function AlphaTabPlayer({ fileUrl, songId, onStatsChange }) {
 
           // Zapisz ścieżki; przy wielu ścieżkach renderuj zapamiętaną lub pierwszą
           scoreRef.current = score
+          let activeTrackIdx = null
           if (score?.tracks?.length > 1) {
             setTracks([...score.tracks])
             const saved = songId != null ? loadSavedTrackIndex(songId) : null
@@ -371,6 +706,7 @@ export default function AlphaTabPlayer({ fileUrl, songId, onStatsChange }) {
               const idx = saved && saved.value >= 0 && saved.value < score.tracks.length
                 ? saved.value
                 : 0
+              activeTrackIdx = idx
               setSelectedTrackIndex(idx)
               at.renderTracks([score.tracks[idx]])
             }
@@ -378,6 +714,10 @@ export default function AlphaTabPlayer({ fileUrl, songId, onStatsChange }) {
             setTracks(score?.tracks ? [...score.tracks] : [])
             setSelectedTrackIndex(null)
           }
+          selectedTrackIndexRef.current = activeTrackIdx
+          applyMixToApi(at, score, soloTrackRef.current, backingTrackRef.current, activeTrackIdx)
+          setScoreHasDistortion(hasDistortionTrack(score))
+          syncDistortionRef.current?.()
 
           setReady(true)
         })
@@ -430,6 +770,11 @@ export default function AlphaTabPlayer({ fileUrl, songId, onStatsChange }) {
     return () => {
       destroyed = true
       endCurrentSession()
+      cancelCountInRef.current?.()
+      // Łańcuch przesteru wisi na AudioContexcie alphaTab, który zaraz zniknie
+      distortionChainRef.current?.dispose()
+      distortionChainRef.current = null
+      distortionRoutedNodeRef.current = null
       if (apiRef.current) {
         try { apiRef.current.destroy() } catch {}
         apiRef.current = null
@@ -437,32 +782,89 @@ export default function AlphaTabPlayer({ fileUrl, songId, onStatsChange }) {
     }
   }, [fileUrl]) // eslint-disable-line react-hooks/exhaustive-deps
 
+  // ── Nawigacja do sekcji (z sidebara) ─────────────────────────────────────
+  // Klik w sekcję: przewiń na początek jej taktu i zagraj od tego miejsca.
+  // Czyta wyłącznie refy, więc rejestrujemy raz; czyścimy kontekst przy odmontowaniu.
+  useEffect(() => {
+    registerSeek?.((bar) => {
+      const api = apiRef.current
+      if (!api) return
+      const startTick = barPositionsRef.current[bar - 1]?.start
+      if (startTick == null) return
+      api.tickPosition = startTick
+      if (!playingRef.current) api.playPause()
+      // Przewiń widok do taktu po tym, jak kursor zdąży się przesunąć na nową
+      // pozycję (tickPosition aktualizuje kursor asynchronicznie).
+      requestAnimationFrame(() => { try { api.scrollToCursor?.() } catch {} })
+    })
+    return () => { clearPlayer?.() }
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
   // ── Keyboard shortcuts ───────────────────────────────────────────────────
   useEffect(() => {
     const onKey = (e) => {
-      // Nie reaguj gdy fokus jest na polu tekstowym / liczby / select
-      const tag = document.activeElement?.tagName
-      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return
+      // Skróty z modyfikatorem należą do przeglądarki (Ctrl+S, Ctrl+R, Cmd+L…)
+      if (e.ctrlKey || e.metaKey || e.altKey) return
+
+      const el = document.activeElement
+      const tag = el?.tagName
+      const typing = tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || el?.isContentEditable
 
       const key = e.key
 
-      // Escape zamyka modal niezależnie od stanu gotowości
-      if (key === 'Escape') { setShowShortcuts(false); return }
-      // ? otwiera/zamyka modal niezależnie od stanu gotowości
+      // Escape = wyjście z tego, co akurat przeszkadza: pole → panel → odliczanie
+      if (key === 'Escape') {
+        if (typing) { el.blur(); return }
+        if (showShortcutsRef.current) { setShowShortcuts(false); return }
+        if (showRiffsRef.current) { setShowRiffs(false); return }
+        if (showSavedLoopsRef.current) { setShowSavedLoops(false); return }
+        cancelCountInRef.current?.()
+        return
+      }
+
+      // Wpisywanie w pole ma pierwszeństwo przed skrótami
+      if (typing) return
+
+      // ? otwiera/zamyka ściągawkę niezależnie od stanu gotowości
       if (key === '?') { setShowShortcuts(prev => !prev); return }
 
+      // Przy otwartym oknie klawisze sterują oknem, nie playerem pod spodem
+      if (showShortcutsRef.current || showRiffsRef.current) return
+
       if (!readyRef.current) return
+
+      // Przytrzymanie klawisza powtarza tylko tam, gdzie to ma sens (tempo,
+      // zakres pętli, przewijanie). Przełączniki inaczej migotałyby w kółko.
+      if (e.repeat && !REPEATABLE_KEYS.has(key)) return
 
       switch (key) {
         // ── Odtwarzanie ──────────────────────────────────────────────
         case ' ':
           e.preventDefault()
-          apiRef.current?.playPause()
+          requestPlayPauseRef.current?.()
           break
 
         case 's':
         case 'S':
+          cancelCountInRef.current?.()
           apiRef.current?.stop()
+          break
+
+        // ── Przewijanie po taktach ───────────────────────────────────
+        case 'ArrowLeft':
+          e.preventDefault()
+          seekToBarRef.current?.(currentBarRef.current - (e.shiftKey ? 4 : 1))
+          break
+
+        case 'ArrowRight':
+          e.preventDefault()
+          seekToBarRef.current?.(currentBarRef.current + (e.shiftKey ? 4 : 1))
+          break
+
+        // Początek pętli, a gdy jej nie ma — początek utworu
+        case 'Home':
+          e.preventDefault()
+          seekToBarRef.current?.(loopOnRef.current ? loopStartRef.current : 1)
           break
 
         // ── BPM ──────────────────────────────────────────────────────
@@ -515,6 +917,30 @@ export default function AlphaTabPlayer({ fileUrl, songId, onStatsChange }) {
           break
         }
 
+        // ── Ścieżka — solo ───────────────────────────────────────────
+        case 't':
+        case 'T':
+          toggleSoloRef.current()
+          break
+
+        // ── Ścieżka — podkład (wycisz wybraną, gra reszta) ───────────
+        case 'b':
+        case 'B':
+          toggleBackingRef.current()
+          break
+
+        // ── Przester ─────────────────────────────────────────────────
+        case 'd':
+        case 'D':
+          toggleDistortionRef.current()
+          break
+
+        // ── Ślady ćwiczeń na tabulaturze ─────────────────────────────
+        case 'h':
+        case 'H':
+          toggleBarHeatRef.current()
+          break
+
         // ── Pętla — toggle / clear ────────────────────────────────────
         case 'l':
         case 'L':
@@ -558,6 +984,35 @@ export default function AlphaTabPlayer({ fileUrl, songId, onStatsChange }) {
     return () => document.removeEventListener('keydown', onKey)
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Klik myszą zostawiał fokus na przycisku, więc kolejna Spacja aktywowała
+  // ten przycisk zamiast Play/Pause. Po kliknięciu myszą zdejmujemy fokus;
+  // klik wywołany z klawiatury ma detail === 0, więc nawigacja Tab-em działa.
+  useEffect(() => {
+    const onClick = (e) => {
+      if (e.detail === 0) return
+      const btn = e.target.closest?.('button')
+      if (btn && btn.closest('.at-bottom-bar, .at-wrap, .at-saved-loops-panel')) btn.blur()
+    }
+    document.addEventListener('click', onClick)
+    return () => document.removeEventListener('click', onClick)
+  }, [])
+
+  // ── Skok do taktu ────────────────────────────────────────────────────────
+  // Przesuwa kursor i widok, nie zmieniając stanu odtwarzania — gra dalej gra,
+  // pauza zostaje pauzą (inaczej niż nawigacja po sekcjach z sidebara).
+  const seekToBar = (bar) => {
+    const api = apiRef.current
+    const bars = barPositionsRef.current
+    if (!api || !bars.length) return
+    const target = Math.max(1, Math.min(bars.length, bar))
+    const tick = bars[target - 1]?.start
+    if (tick == null) return
+    api.tickPosition = tick
+    currentBarRef.current = target
+    requestAnimationFrame(() => { try { api.scrollToCursor?.() } catch {} })
+  }
+  seekToBarRef.current = seekToBar
+
   // ── BPM ──────────────────────────────────────────────────────────────────
   const applyBpm = (newBpm) => {
     const clamped = Math.max(BPM_MIN, Math.min(BPM_MAX, newBpm))
@@ -566,6 +1021,7 @@ export default function AlphaTabPlayer({ fileUrl, songId, onStatsChange }) {
     if (apiRef.current && originalBpmRef.current) {
       apiRef.current.playbackSpeed = clamped / originalBpmRef.current
     }
+    saveBpm(songId, clamped)
     return clamped
   }
   applyBpmRef.current = applyBpm
@@ -578,7 +1034,8 @@ export default function AlphaTabPlayer({ fileUrl, songId, onStatsChange }) {
     else setBpmInput(String(bpm))
   }
   const handleBpmKey = (e) => {
-    if (e.key === 'Enter') handleBpmCommit()
+    // Enter zatwierdza i oddaje fokus — inaczej skróty byłyby dalej martwe
+    if (e.key === 'Enter') { handleBpmCommit(); e.currentTarget.blur() }
     if (e.key === 'ArrowUp') applyBpm((bpm ?? 120) + 1)
     if (e.key === 'ArrowDown') applyBpm((bpm ?? 120) - 1)
   }
@@ -589,19 +1046,140 @@ export default function AlphaTabPlayer({ fileUrl, songId, onStatsChange }) {
   const handleTrackChange = (e) => {
     const at = apiRef.current
     const score = scoreRef.current
+    // Fokus na <select> blokuje skróty (i Spacja rozwijałaby listę) — oddaj go
+    e.target.blur()
     if (!at || !score) return
     const val = e.target.value
     if (val === 'all') {
       setSelectedTrackIndex(null)
+      selectedTrackIndexRef.current = null
       at.renderTracks(score.tracks)
       if (songId != null) saveTrackIndex(songId, null)
     } else {
       const idx = parseInt(val, 10)
       setSelectedTrackIndex(idx)
+      selectedTrackIndexRef.current = idx
       at.renderTracks([score.tracks[idx]])
       if (songId != null) saveTrackIndex(songId, idx)
     }
+    // Solo / podkład idą za wyborem ścieżki
+    applyMixToApi(at, score, soloTrackRef.current, backingTrackRef.current, selectedTrackIndexRef.current)
   }
+
+  // Słychać tylko wybraną ścieżkę (alphaTab solo na kanale MIDI).
+  const toggleSolo = () => {
+    if (selectedTrackIndexRef.current == null) return
+    const next = !soloTrackRef.current
+    setSoloTrack(next)
+    soloTrackRef.current = next
+    saveSoloPref(next)
+    if (next && backingTrackRef.current) {
+      // Solo i podkład się wykluczają
+      setBackingTrack(false)
+      backingTrackRef.current = false
+      saveBackingPref(false)
+    }
+    applyMixToApi(apiRef.current, scoreRef.current, soloTrackRef.current, backingTrackRef.current, selectedTrackIndexRef.current)
+  }
+  toggleSoloRef.current = toggleSolo
+
+  // Podkład: wybrana ścieżka wyciszona, gra reszta zespołu — Ty grasz ją sam.
+  // Działa z metronomem jak zwykłe odtwarzanie (kliknięcia z eventów MIDI).
+  const toggleBacking = () => {
+    if (selectedTrackIndexRef.current == null) return
+    const next = !backingTrackRef.current
+    setBackingTrack(next)
+    backingTrackRef.current = next
+    saveBackingPref(next)
+    if (next && soloTrackRef.current) {
+      setSoloTrack(false)
+      soloTrackRef.current = false
+      saveSoloPref(false)
+    }
+    applyMixToApi(apiRef.current, scoreRef.current, soloTrackRef.current, backingTrackRef.current, selectedTrackIndexRef.current)
+  }
+  toggleBackingRef.current = toggleBacking
+
+  // ── Przester ──────────────────────────────────────────────────────────────
+  // Efekt wpinamy między wyjście syntezatora alphaTab a głośniki. Węzeł
+  // wyjściowy jest tworzony od nowa przy każdym Play, więc routing trzeba
+  // odtwarzać po starcie odtwarzania (patrz scheduleDistortionRouting).
+  const syncDistortion = () => {
+    const at = apiRef.current
+    const score = scoreRef.current
+    const engage = distortionOnRef.current
+      && shouldEngageDistortion(score, soloTrackRef.current, selectedTrackIndexRef.current, backingTrackRef.current)
+    setDistortionEngaged(engage)
+
+    const node = getSynthOutputNode(at)
+    const ctx = getSynthAudioContext(at)
+    if (!node || !ctx) {
+      distortionRoutedNodeRef.current = null
+      return
+    }
+
+    if (engage) {
+      let chain = distortionChainRef.current
+      if (!chain || chain.ctx !== ctx) {
+        chain?.dispose()
+        try {
+          chain = { ...createDistortionChain(ctx, distortionDrive), ctx }
+          chain.output.connect(ctx.destination)
+        } catch {
+          distortionChainRef.current = null
+          return
+        }
+        distortionChainRef.current = chain
+      }
+      if (distortionRoutedNodeRef.current !== node) {
+        try {
+          node.disconnect()
+          node.connect(chain.input)
+          distortionRoutedNodeRef.current = node
+        } catch {}
+      }
+    } else if (distortionRoutedNodeRef.current === node) {
+      try {
+        node.disconnect()
+        node.connect(ctx.destination)
+      } catch {}
+      distortionRoutedNodeRef.current = null
+    }
+  }
+  syncDistortionRef.current = syncDistortion
+
+  const toggleDistortion = () => {
+    const next = !distortionOnRef.current
+    setDistortionOn(next)
+    distortionOnRef.current = next
+    saveDistPref(next)
+    syncDistortionRef.current()
+  }
+  toggleDistortionRef.current = toggleDistortion
+
+  const handleDriveChange = (e) => {
+    const v = parseFloat(e.target.value)
+    setDistortionDrive(v)
+    saveDistDrive(v)
+    distortionChainRef.current?.setDrive(v)
+  }
+
+  // Węzeł wyjściowy powstaje asynchronicznie po Play — próbujemy aż będzie.
+  const scheduleDistortionRouting = () => {
+    let tries = 0
+    const tick = () => {
+      if (!apiRef.current) return
+      syncDistortionRef.current?.()
+      if (++tries < 20 && !getSynthOutputNode(apiRef.current)) setTimeout(tick, 100)
+    }
+    tick()
+  }
+  scheduleDistortionRoutingRef.current = scheduleDistortionRouting
+
+  // Zmiana ścieżki / solo / podkładu / włącznika przelicza routing
+  useEffect(() => {
+    syncDistortionRef.current?.()
+  }, [distortionOn, soloTrack, backingTrack, selectedTrackIndex, tracks])
 
   // ── Volume ────────────────────────────────────────────────────────────────
   const handleVolume = (e) => {
@@ -629,50 +1207,56 @@ export default function AlphaTabPlayer({ fileUrl, songId, onStatsChange }) {
     metronomeVolumeRef.current = v
   }
 
-  // Standalone metronome — Web Audio look-ahead scheduler.
-  // Działa tylko gdy utwór NIE jest odtwarzany. Gdy gra, ciszę zapewnia
-  // ten sam useEffect, a klikanie obsługują eventy MIDI z alphaTab (sync).
-  const stopStandaloneMetronome = () => {
-    if (standaloneTimerRef.current) {
-      clearInterval(standaloneTimerRef.current)
-      standaloneTimerRef.current = null
+  // ── Odliczanie przed startem odtwarzania ─────────────────────────────────
+  // Zamiast od razu grać, klikamy jeden takt metronomem (akcent na "raz")
+  // i dopiero wtedy startujemy odtwarzanie — niezależnie od tego, czy pętla
+  // jest włączona.
+  const cancelCountIn = () => {
+    if (countInTimerRef.current) {
+      clearTimeout(countInTimerRef.current)
+      countInTimerRef.current = null
     }
+    setCountingIn(false)
   }
+  cancelCountInRef.current = cancelCountIn
 
-  const startStandaloneMetronome = (bpmValue) => {
-    stopStandaloneMetronome()
-    const ctx = getAudioCtx()
-    if (!ctx || !bpmValue || bpmValue <= 0) return
-    const secPerBeat = 60 / bpmValue
-    const numerator = timeSigNumeratorRef.current || 4
-    standaloneBeatCounterRef.current = 0
-    standaloneNextBeatTimeRef.current = ctx.currentTime + 0.08  // mała zwłoka startowa
-
-    const scheduler = () => {
-      const lookAhead = ctx.currentTime + 0.15
-      while (standaloneNextBeatTimeRef.current < lookAhead) {
-        const beat = standaloneBeatCounterRef.current
-        const isAccent = beat % numerator === 0
-        playClick(ctx, isAccent, metronomeVolumeRef.current, standaloneNextBeatTimeRef.current)
-        standaloneNextBeatTimeRef.current += secPerBeat
-        standaloneBeatCounterRef.current++
+  const requestPlayPause = () => {
+    const at = apiRef.current
+    if (!at || !readyRef.current) return
+    // Klik w trakcie odliczania = anuluj (nie startuj)
+    if (countInTimerRef.current) {
+      cancelCountIn()
+      return
+    }
+    if (!playingRef.current && countInOnRef.current) {
+      const ctx = getAudioCtxRef.current()
+      const beatsCount = timeSigNumeratorRef.current || 4
+      const period = 60 / (bpmRef.current || 120)
+      const t0 = ctx.currentTime + 0.1
+      for (let i = 0; i < beatsCount; i++) {
+        playClick(ctx, i === 0, metronomeVolumeRef.current, t0 + i * period)
       }
-    }
-    scheduler()
-    standaloneTimerRef.current = setInterval(scheduler, 25)
-  }
-
-  // Steruj standalone metronomem na podstawie [metronomeOn, playing, bpm].
-  // Gdy utwór gra → standalone jest WYŁĄCZONY (klikanie z midiEventsPlayed = pełna synchronizacja).
-  // Gdy utwór NIE gra i metronom włączony → standalone leci.
-  useEffect(() => {
-    if (metronomeOn && !playing && bpm) {
-      startStandaloneMetronome(bpm)
+      setCountingIn(true)
+      startSessionIfNeededRef.current()
+      countInTimerRef.current = setTimeout(() => {
+        countInTimerRef.current = null
+        setCountingIn(false)
+        apiRef.current?.playPause()
+      }, Math.max(0, (t0 - ctx.currentTime + beatsCount * period) * 1000))
     } else {
-      stopStandaloneMetronome()
+      at.playPause()
     }
-    return stopStandaloneMetronome
-  }, [metronomeOn, playing, bpm]) // eslint-disable-line react-hooks/exhaustive-deps
+  }
+  requestPlayPauseRef.current = requestPlayPause
+
+  const toggleCountIn = () => {
+    setCountInOn(prev => {
+      const next = !prev
+      countInOnRef.current = next
+      saveCountInPref(next)
+      return next
+    })
+  }
 
   // ── Loop ──────────────────────────────────────────────────────────────────
   const clampBar = (val, min, max) => Math.max(min, Math.min(max, val))
@@ -795,6 +1379,26 @@ export default function AlphaTabPlayer({ fileUrl, songId, onStatsChange }) {
     loopOnRef.current = true
   }
 
+  // ── Analiza riffów ───────────────────────────────────────────────────────
+  // Klik w zakres taktów w modalu → pętla na ten riff + przewinięcie widoku.
+  const handleRiffRangeSelect = (start, end) => {
+    setLoopStart(start)
+    setLoopEnd(end)
+    loopStartRef.current = start
+    loopEndRef.current = end
+    applyLoopRange(start, end)
+    setLoopOn(true)
+    loopOnRef.current = true
+    setShowRiffs(false)
+
+    const api = apiRef.current
+    const tick = barPositionsRef.current[start - 1]?.start
+    if (api && tick != null) {
+      api.tickPosition = tick
+      requestAnimationFrame(() => { try { api.scrollToCursor?.() } catch {} })
+    }
+  }
+
   // ─────────────────────────────────────────────────────────────────────────
   const progress = endTime > 0 ? (currentTime / endTime) * 100 : 0
   const isOriginalBpm = bpm === originalBpmRef.current
@@ -804,12 +1408,21 @@ export default function AlphaTabPlayer({ fileUrl, songId, onStatsChange }) {
     <>
     {showShortcuts && <KeyboardShortcutsModal onClose={() => setShowShortcuts(false)} />}
 
+    {showRiffs && scoreRef.current && (
+      <RiffsModal
+        score={scoreRef.current}
+        initialTrackIndex={selectedTrackIndex ?? 0}
+        onClose={() => setShowRiffs(false)}
+        onSelectRange={handleRiffRangeSelect}
+      />
+    )}
+
     {/* Saved loops panel — pojawia się nad panelem pętli */}
     {ready && totalBars > 0 && user && showSavedLoops && (
       <div className="at-saved-loops-panel">
         <div className="at-saved-loops-header">
           <span>Zapisane pętle</span>
-          <button className="at-saved-loops-close" onClick={() => setShowSavedLoops(false)}>✕</button>
+          <button className="at-saved-loops-close" onClick={() => setShowSavedLoops(false)}><IconClose /></button>
         </div>
 
         <div className="at-save-loop-form">
@@ -849,7 +1462,7 @@ export default function AlphaTabPlayer({ fileUrl, songId, onStatsChange }) {
                   className="at-saved-loop-delete"
                   onClick={() => handleDeleteSavedLoop(loop.id)}
                   title="Usuń pętlę"
-                >✕</button>
+                ><IconClose /></button>
               </li>
             ))}
           </ul>
@@ -857,25 +1470,27 @@ export default function AlphaTabPlayer({ fileUrl, songId, onStatsChange }) {
       </div>
     )}
 
-    {/* Dolny pasek — tempo, pętla i ścieżka w jednym */}
-    {ready && (
-      <div className="at-bottom-bar">
+    {/* Dolny pasek — tempo, pętla i ścieżka w jednym.
+        Bramkowany na totalBars (nie na ready), żeby przy zmianie utworu został
+        widoczny ze starymi danymi i tylko przygasł, zamiast znikać. */}
+    {totalBars > 0 && (
+      <div className={`at-bottom-bar ${ready ? '' : 'at-bottom-bar--loading'}`}>
 
         {/* Transport — play, stop, głośność, metronom */}
         <div className="at-transport at-bb-group">
           <button
-            className={`at-btn ${playing ? 'at-btn-pause' : 'at-btn-play'}`}
-            onClick={() => apiRef.current?.playPause()}
+            className={`at-btn ${playing ? 'at-btn-pause' : 'at-btn-play'} ${countingIn ? 'at-btn--countin' : ''}`}
+            onClick={requestPlayPause}
             disabled={!ready}
-            title={playing ? 'Pause' : 'Play'}
-          >{playing ? '⏸' : '▶'}</button>
+            title={countingIn ? 'Odliczanie… (klik = anuluj)' : playing ? 'Pause' : 'Play'}
+          >{playing ? <IconPause /> : <IconPlay />}</button>
 
           <button
             className="at-btn"
-            onClick={() => apiRef.current?.stop()}
+            onClick={() => { cancelCountIn(); apiRef.current?.stop() }}
             disabled={!ready}
             title="Stop"
-          >⏹</button>
+          ><IconStop /></button>
 
           <label className="at-control-label">
             <span>Vol</span>
@@ -887,8 +1502,8 @@ export default function AlphaTabPlayer({ fileUrl, songId, onStatsChange }) {
               className={`at-btn at-btn-metro ${metronomeOn ? 'at-btn-metro--on' : ''}`}
               onClick={toggleMetronome}
               disabled={!ready}
-              title={metronomeOn ? 'Metronome ON' : 'Metronome OFF'}
-            >🥁</button>
+              title={metronomeOn ? 'Metronom ON — klika w trakcie odtwarzania (M)' : 'Metronom OFF (M)'}
+            ><IconDrum /></button>
             {metronomeOn && (
               <label className="at-control-label at-metro-vol-label">
                 <span className="at-metro-vol-value">{Math.round(metronomeVolume * 100)}%</span>
@@ -914,8 +1529,8 @@ export default function AlphaTabPlayer({ fileUrl, songId, onStatsChange }) {
             />
           </div>
           <button className="at-bpm-step" onClick={() => stepBpm(+5)} disabled={(bpm ?? 0) >= BPM_MAX} title="+5 BPM (+)">+</button>
-          {!isOriginalBpm && (
-            <button className="at-bpm-reset" onClick={resetBpm} title={`Reset do ${originalBpmRef.current} BPM`}>↺</button>
+          {ready && !isOriginalBpm && (
+            <button className="at-bpm-reset" onClick={resetBpm} title={`Reset do ${originalBpmRef.current} BPM`}><IconReset /></button>
           )}
           <input
             className="at-bpm-panel-slider" type="range" min={BPM_MIN} max={BPM_MAX} step="1"
@@ -938,6 +1553,7 @@ export default function AlphaTabPlayer({ fileUrl, songId, onStatsChange }) {
                 max={totalBars}
                 value={loopStart}
                 onChange={handleLoopStartChange}
+                onKeyDown={e => e.key === 'Enter' && e.currentTarget.blur()}
                 disabled={loopOn}
                 title="Pierwszy takt pętli"
               />
@@ -949,6 +1565,7 @@ export default function AlphaTabPlayer({ fileUrl, songId, onStatsChange }) {
                 max={totalBars}
                 value={loopEnd}
                 onChange={handleLoopEndChange}
+                onKeyDown={e => e.key === 'Enter' && e.currentTarget.blur()}
                 disabled={loopOn}
                 title="Ostatni takt pętli"
               />
@@ -961,21 +1578,29 @@ export default function AlphaTabPlayer({ fileUrl, songId, onStatsChange }) {
               disabled={!loopValid}
               title={loopOn ? 'Wyłącz pętlę' : `Zapętl takty ${loopStart}–${loopEnd}`}
             >
-              🔁
+              <IconLoop />
             </button>
+
+            <button
+              className={`at-loop-toggle at-loop-countin ${countInOn ? 'at-loop-toggle--on' : ''}`}
+              onClick={toggleCountIn}
+              title={countInOn
+                ? 'Odliczanie włączone — jeden takt metronomu przed każdym startem'
+                : 'Włącz krótkie odliczanie (jeden takt metronomu) przed startem odtwarzania'}
+            >1·2·3·4</button>
 
             <button
               className="at-loop-clear"
               onClick={clearLoop}
               title="Wyczyść pętlę"
-            >✕</button>
+            ><IconClose /></button>
 
             {user && (
               <button
                 className={`at-loop-bookmarks ${showSavedLoops ? 'at-loop-bookmarks--open' : ''}`}
                 onClick={() => setShowSavedLoops(prev => !prev)}
                 title="Zapisane pętle"
-              >🔖{savedLoops.length > 0 && <span className="at-loop-bookmarks-count">{savedLoops.length}</span>}</button>
+              ><IconBookmark />{savedLoops.length > 0 && <span className="at-loop-bookmarks-count">{savedLoops.length}</span>}</button>
             )}
           </div>
         )}
@@ -1002,6 +1627,77 @@ export default function AlphaTabPlayer({ fileUrl, songId, onStatsChange }) {
                 </option>
               ))}
             </select>
+
+            <button
+              className={`at-track-solo ${soloTrack && selectedTrackIndex != null ? 'at-track-solo--on' : ''}`}
+              onClick={toggleSolo}
+              disabled={selectedTrackIndex == null}
+              title={selectedTrackIndex == null
+                ? 'Wybierz pojedynczą ścieżkę, żeby ją wyciszyć solo (T)'
+                : soloTrack
+                  ? 'Wyłącz solo — słychać wszystkie ścieżki (T)'
+                  : 'Solo — słychać tylko wybraną ścieżkę (T)'}
+            >SOLO</button>
+
+            <button
+              className={`at-track-solo ${backingTrack && selectedTrackIndex != null ? 'at-track-solo--on' : ''}`}
+              onClick={toggleBacking}
+              disabled={selectedTrackIndex == null}
+              title={selectedTrackIndex == null
+                ? 'Wybierz pojedynczą ścieżkę, żeby zrobić z reszty podkład (B)'
+                : backingTrack
+                  ? 'Wyłącz podkład — słychać wszystkie ścieżki (B)'
+                  : 'Podkład — wycisz wybraną ścieżkę, gra reszta zespołu; działa też z metronomem (B)'}
+            >PODKŁAD</button>
+          </div>
+        )}
+
+        {/* Przester — dla ścieżek z distortion guitar */}
+        {ready && scoreHasDistortion && (
+          <div className="at-dist">
+            <button
+              className={`at-dist-toggle ${distortionOn ? 'at-dist-toggle--on' : ''} ${distortionOn && !distortionEngaged ? 'at-dist-toggle--idle' : ''}`}
+              onClick={toggleDistortion}
+              title={!distortionOn
+                ? 'Przester na ścieżkach z distortion guitar (D)'
+                : distortionEngaged
+                  ? 'Przester aktywny — wyłącz (D)'
+                  : 'Przester włączony, ale słychać też inne instrumenty — włącz SOLO na ścieżce z przesterem (D)'}
+            >PRZESTER</button>
+
+            {distortionOn && (
+              <input
+                className="at-dist-drive"
+                type="range" min="0" max="1" step="0.05"
+                value={distortionDrive}
+                onChange={handleDriveChange}
+                title={`Drive: ${Math.round(distortionDrive * 100)}%`}
+              />
+            )}
+          </div>
+        )}
+
+        {/* Ślady ćwiczeń — kolor taktów na tabulaturze */}
+        {ready && user && (
+          <div className="at-heat">
+            <button
+              className={`at-heat-toggle ${barHeatOn ? 'at-heat-toggle--on' : ''}`}
+              onClick={toggleBarHeat}
+              title={barHeatOn
+                ? 'Ukryj ślady ćwiczeń na tabulaturze (H)'
+                : 'Pokoloruj takty wg tego, ile razem razy je przerabiałeś (H)'}
+            >ŚLADY</button>
+
+            {barHeatOn && (
+              <span className="at-heat-legend" title="Czerwone — ćwiczone rzadko, zielone — najwięcej powtórzeń">
+                <span className="at-heat-legend-label">rzadko</span>
+                <span
+                  className="at-heat-legend-gradient"
+                  style={{ background: RAMP_GRADIENT_CSS }}
+                />
+                <span className="at-heat-legend-label">często</span>
+              </span>
+            )}
           </div>
         )}
 
@@ -1022,6 +1718,14 @@ export default function AlphaTabPlayer({ fileUrl, songId, onStatsChange }) {
           disabled={!ready}
         />
 
+        {/* Analiza riffów */}
+        <button
+          className="at-btn at-btn-riffs"
+          onClick={() => setShowRiffs(true)}
+          disabled={!ready}
+          title="Analiza riffów — powtórzenia i warianty"
+        ><IconMusicNote /> Riffy</button>
+
         {/* Skróty klawiszowe */}
         <button
           className="at-btn at-btn-shortcuts"
@@ -1038,8 +1742,8 @@ export default function AlphaTabPlayer({ fileUrl, songId, onStatsChange }) {
             <span>Loading tablature…</span>
           </div>
         )}
-        {error && <div className="at-overlay at-error"><span>⚠ {error}</span></div>}
-        <div ref={containerRef} className="at-surface" />
+        {error && <div className="at-overlay at-error"><span><IconWarning /> {error}</span></div>}
+        <div ref={containerRef} className={`at-surface ${loading ? 'is-loading' : ''}`} />
       </div>
     </div>
     </>

@@ -56,12 +56,36 @@
   justify-content: space-between;
 }
 
-.mh-title {
-  font-size: 12px;
+.mh-modes {
+  display: flex;
+  gap: 2px;
+  background: var(--surface-3);
+  border-radius: 6px;
+  padding: 2px;
+}
+
+.mh-mode {
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  padding: 4px 10px;
+  border-radius: 4px;
+  font-family: inherit;
+  font-size: 10px;
   font-weight: 700;
-  color: var(--text-2);
-  letter-spacing: 0.3px;
+  letter-spacing: 0.4px;
   text-transform: uppercase;
+  color: var(--text-muted);
+  transition: color 0.12s, background 0.12s;
+}
+
+.mh-mode:hover {
+  color: var(--text-2);
+}
+
+.mh-mode.is-active {
+  background: var(--surface-2);
+  color: var(--text);
 }
 
 .mh-subtitle {
