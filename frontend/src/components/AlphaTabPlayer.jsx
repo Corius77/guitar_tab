@@ -4,13 +4,6 @@ import KeyboardShortcutsModal from './KeyboardShortcutsModal'
 import RecordingPanel from './RecordingPanel'
 import RiffsModal from './RiffsModal'
 import { IconPlay, IconPause, IconStop, IconDrum, IconReset, IconLoop, IconClose, IconBookmark, IconWarning, IconMusicNote } from './icons'
-import {
-  createDistortionChain,
-  getSynthAudioContext,
-  getSynthOutputNode,
-  hasDistortionTrack,
-  shouldEngageDistortion,
-} from '../audio/distortion'
 import { paintBarHeat, clearBarHeat } from './barHeatOverlay'
 import { RAMP_GRADIENT_CSS, makeIntensityAt } from '../utils/practiceHeat'
 import { useAuth } from '../context/AuthContext'
@@ -212,36 +205,6 @@ function saveBarHeatPref(on) {
   try { localStorage.setItem(BAR_HEAT_STORAGE_KEY, on ? 'true' : 'false') } catch {}
 }
 
-// ── Przester na ścieżkach z distortion guitar ──────────────────────────────
-const DIST_STORAGE_KEY = 'guitarTab.distortionFx'
-const DIST_DRIVE_STORAGE_KEY = 'guitarTab.distortionDrive'
-const DEFAULT_DRIVE = 0.55
-
-function loadDistPref() {
-  try {
-    return localStorage.getItem(DIST_STORAGE_KEY) === 'true'
-  } catch {
-    return false
-  }
-}
-
-function loadDistDrive() {
-  try {
-    const raw = parseFloat(localStorage.getItem(DIST_DRIVE_STORAGE_KEY))
-    return isNaN(raw) ? DEFAULT_DRIVE : Math.max(0, Math.min(1, raw))
-  } catch {
-    return DEFAULT_DRIVE
-  }
-}
-
-function saveDistPref(on) {
-  try { localStorage.setItem(DIST_STORAGE_KEY, on ? 'true' : 'false') } catch {}
-}
-
-function saveDistDrive(drive) {
-  try { localStorage.setItem(DIST_DRIVE_STORAGE_KEY, String(drive)) } catch {}
-}
-
 // Ustawia miks wg trybu: solo → słychać tylko wybraną ścieżkę,
 // podkład → słychać wszystko POZA wybraną (grasz ją sam na żywo).
 // idx === null (wszystkie ścieżki) → oba tryby bez sensu, czyścimy.
@@ -280,9 +243,6 @@ export default function AlphaTabPlayer({ fileUrl, songId, stats, onStatsChange }
   const soloTrackRef = useRef(false)
   const backingTrackRef = useRef(false)
   const selectedTrackIndexRef = useRef(null)
-  const distortionOnRef = useRef(false)
-  const distortionChainRef = useRef(null)   // { input, output, setDrive, dispose }
-  const distortionRoutedNodeRef = useRef(null) // węzeł alphaTab, który przekierowaliśmy
 
   // Odliczanie przed startem pętli
   const countInOnRef = useRef(false)
@@ -293,9 +253,6 @@ export default function AlphaTabPlayer({ fileUrl, songId, stats, onStatsChange }
   const applyBpmRef = useRef(null)
   const toggleSoloRef = useRef(null)
   const toggleBackingRef = useRef(null)
-  const toggleDistortionRef = useRef(null)
-  const syncDistortionRef = useRef(null)
-  const scheduleDistortionRoutingRef = useRef(null)
   const getAudioCtxRef = useRef(null)
   const toggleLoopRef = useRef(null)
   const clearLoopRef = useRef(null)
@@ -374,12 +331,6 @@ export default function AlphaTabPlayer({ fileUrl, songId, stats, onStatsChange }
   // Ta sama mapa idzie potem na backend jako podsumowanie sesji.
   const liveBarsRef = useRef(new Map())
   const [liveBarsTick, setLiveBarsTick] = useState(0)
-
-  // Przester
-  const [distortionOn, setDistortionOn] = useState(loadDistPref)
-  const [distortionDrive, setDistortionDrive] = useState(loadDistDrive)
-  const [distortionEngaged, setDistortionEngaged] = useState(false) // czy efekt faktycznie gra
-  const [scoreHasDistortion, setScoreHasDistortion] = useState(false)
 
   // Odliczanie przed pętlą
   const [countInOn, setCountInOn] = useState(loadCountInPref)
@@ -543,11 +494,6 @@ export default function AlphaTabPlayer({ fileUrl, songId, stats, onStatsChange }
         setTracks([])
         setSelectedTrackIndex(null)
         selectedTrackIndexRef.current = null
-        setScoreHasDistortion(false)
-        setDistortionEngaged(false)
-        distortionChainRef.current?.dispose()
-        distortionChainRef.current = null
-        distortionRoutedNodeRef.current = null
         scoreRef.current = null
         setShowRiffs(false)
         liveBarsRef.current = new Map()
@@ -601,13 +547,7 @@ export default function AlphaTabPlayer({ fileUrl, songId, stats, onStatsChange }
           playingRef.current = isPlaying
 
           // Auto-start sesji przy pierwszym Play
-          if (isPlaying) {
-            startSessionIfNeededRef.current()
-            // Nowy węzeł wyjściowy syntezatora → wepnij przester od nowa
-            scheduleDistortionRoutingRef.current?.()
-          } else {
-            distortionRoutedNodeRef.current = null
-          }
+          if (isPlaying) startSessionIfNeededRef.current()
         })
 
         at.playerPositionChanged.on((e) => {
@@ -716,8 +656,6 @@ export default function AlphaTabPlayer({ fileUrl, songId, stats, onStatsChange }
           }
           selectedTrackIndexRef.current = activeTrackIdx
           applyMixToApi(at, score, soloTrackRef.current, backingTrackRef.current, activeTrackIdx)
-          setScoreHasDistortion(hasDistortionTrack(score))
-          syncDistortionRef.current?.()
 
           setReady(true)
         })
@@ -771,10 +709,6 @@ export default function AlphaTabPlayer({ fileUrl, songId, stats, onStatsChange }
       destroyed = true
       endCurrentSession()
       cancelCountInRef.current?.()
-      // Łańcuch przesteru wisi na AudioContexcie alphaTab, który zaraz zniknie
-      distortionChainRef.current?.dispose()
-      distortionChainRef.current = null
-      distortionRoutedNodeRef.current = null
       if (apiRef.current) {
         try { apiRef.current.destroy() } catch {}
         apiRef.current = null
@@ -927,12 +861,6 @@ export default function AlphaTabPlayer({ fileUrl, songId, stats, onStatsChange }
         case 'b':
         case 'B':
           toggleBackingRef.current()
-          break
-
-        // ── Przester ─────────────────────────────────────────────────
-        case 'd':
-        case 'D':
-          toggleDistortionRef.current()
           break
 
         // ── Ślady ćwiczeń na tabulaturze ─────────────────────────────
@@ -1099,87 +1027,6 @@ export default function AlphaTabPlayer({ fileUrl, songId, stats, onStatsChange }
     applyMixToApi(apiRef.current, scoreRef.current, soloTrackRef.current, backingTrackRef.current, selectedTrackIndexRef.current)
   }
   toggleBackingRef.current = toggleBacking
-
-  // ── Przester ──────────────────────────────────────────────────────────────
-  // Efekt wpinamy między wyjście syntezatora alphaTab a głośniki. Węzeł
-  // wyjściowy jest tworzony od nowa przy każdym Play, więc routing trzeba
-  // odtwarzać po starcie odtwarzania (patrz scheduleDistortionRouting).
-  const syncDistortion = () => {
-    const at = apiRef.current
-    const score = scoreRef.current
-    const engage = distortionOnRef.current
-      && shouldEngageDistortion(score, soloTrackRef.current, selectedTrackIndexRef.current, backingTrackRef.current)
-    setDistortionEngaged(engage)
-
-    const node = getSynthOutputNode(at)
-    const ctx = getSynthAudioContext(at)
-    if (!node || !ctx) {
-      distortionRoutedNodeRef.current = null
-      return
-    }
-
-    if (engage) {
-      let chain = distortionChainRef.current
-      if (!chain || chain.ctx !== ctx) {
-        chain?.dispose()
-        try {
-          chain = { ...createDistortionChain(ctx, distortionDrive), ctx }
-          chain.output.connect(ctx.destination)
-        } catch {
-          distortionChainRef.current = null
-          return
-        }
-        distortionChainRef.current = chain
-      }
-      if (distortionRoutedNodeRef.current !== node) {
-        try {
-          node.disconnect()
-          node.connect(chain.input)
-          distortionRoutedNodeRef.current = node
-        } catch {}
-      }
-    } else if (distortionRoutedNodeRef.current === node) {
-      try {
-        node.disconnect()
-        node.connect(ctx.destination)
-      } catch {}
-      distortionRoutedNodeRef.current = null
-    }
-  }
-  syncDistortionRef.current = syncDistortion
-
-  const toggleDistortion = () => {
-    const next = !distortionOnRef.current
-    setDistortionOn(next)
-    distortionOnRef.current = next
-    saveDistPref(next)
-    syncDistortionRef.current()
-  }
-  toggleDistortionRef.current = toggleDistortion
-
-  const handleDriveChange = (e) => {
-    const v = parseFloat(e.target.value)
-    setDistortionDrive(v)
-    saveDistDrive(v)
-    distortionChainRef.current?.setDrive(v)
-  }
-
-  // Węzeł wyjściowy powstaje asynchronicznie po Play — próbujemy aż będzie.
-  const scheduleDistortionRouting = () => {
-    let tries = 0
-    const tick = () => {
-      if (!apiRef.current) return
-      syncDistortionRef.current?.()
-      if (++tries < 20 && !getSynthOutputNode(apiRef.current)) setTimeout(tick, 100)
-    }
-    tick()
-  }
-  scheduleDistortionRoutingRef.current = scheduleDistortionRouting
-
-  // Zmiana ścieżki / solo / podkładu / włącznika przelicza routing
-  useEffect(() => {
-    syncDistortionRef.current?.()
-  }, [distortionOn, soloTrack, backingTrack, selectedTrackIndex, tracks])
 
   // ── Volume ────────────────────────────────────────────────────────────────
   const handleVolume = (e) => {
@@ -1649,31 +1496,6 @@ export default function AlphaTabPlayer({ fileUrl, songId, stats, onStatsChange }
                   ? 'Wyłącz podkład — słychać wszystkie ścieżki (B)'
                   : 'Podkład — wycisz wybraną ścieżkę, gra reszta zespołu; działa też z metronomem (B)'}
             >PODKŁAD</button>
-          </div>
-        )}
-
-        {/* Przester — dla ścieżek z distortion guitar */}
-        {ready && scoreHasDistortion && (
-          <div className="at-dist">
-            <button
-              className={`at-dist-toggle ${distortionOn ? 'at-dist-toggle--on' : ''} ${distortionOn && !distortionEngaged ? 'at-dist-toggle--idle' : ''}`}
-              onClick={toggleDistortion}
-              title={!distortionOn
-                ? 'Przester na ścieżkach z distortion guitar (D)'
-                : distortionEngaged
-                  ? 'Przester aktywny — wyłącz (D)'
-                  : 'Przester włączony, ale słychać też inne instrumenty — włącz SOLO na ścieżce z przesterem (D)'}
-            >PRZESTER</button>
-
-            {distortionOn && (
-              <input
-                className="at-dist-drive"
-                type="range" min="0" max="1" step="0.05"
-                value={distortionDrive}
-                onChange={handleDriveChange}
-                title={`Drive: ${Math.round(distortionDrive * 100)}%`}
-              />
-            )}
           </div>
         )}
 

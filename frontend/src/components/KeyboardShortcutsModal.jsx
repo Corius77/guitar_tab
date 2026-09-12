@@ -37,7 +37,6 @@ const SHORTCUTS = [
       { keys: ['↓'], label: 'Głośność −5%' },
       { keys: ['T'], label: 'Solo — tylko wybrana ścieżka' },
       { keys: ['B'], label: 'Podkład — wycisz wybraną ścieżkę' },
-      { keys: ['D'], label: 'Przester (distortion guitar)' },
       { keys: ['H'], label: 'Ślady ćwiczeń — kolor taktów' },
     ],
   },

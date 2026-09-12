@@ -73,16 +73,6 @@ Key patterns (these are load-bearing, don't refactor them away):
 - **Count-in**: `requestPlayPause` (Space + Play button) plays one bar of Web Audio clicks before starting playback whenever the `1·2·3·4` toggle is on — with or without the loop; a second press during the countdown cancels it.
 - **Heat scale**: the tab overlay (`makeIntensityAt`) and the modal heatmap both divide bar plays by `heatScale(max)` = `Math.max(FULL_HEAT_PLAYS, max)` (`utils/practiceHeat.js`). Pure max-normalisation made a single playthrough paint every bar at full intensity, so the scale stays absolute until some bar passes the threshold and only then follows the song's record. Tune `FULL_HEAT_PLAYS` (currently 12) to make colors climb faster or slower — both views must keep using the same helper.
 
-### Distortion (`audio/distortion.js`)
-
-Web Audio waveshaper chain (pre-gain → highpass → soft-clip → lowpass/peaking cab sim → makeup gain) spliced between alphaTab's synth output node and `ctx.destination`.
-
-**Key constraint**: alphaTab mixes all MIDI channels into one stereo stream, so the effect cannot be per-track. It is therefore gated — it engages only when *every* audible track is an overdriven/distortion guitar (GM programs 29/30), i.e. solo on such a track, or a score made only of such tracks. Otherwise bass and drums would get distorted too.
-
-The splice reaches into alphaTab internals (`api.player.output._worklet` / `._audioNode`, both private). Everything is `try/catch`-wrapped and degrades to "no effect" if the fields move in a future alphaTab release. The output node is **recreated on every Play and destroyed on Pause**, so routing is re-applied from `playerStateChanged` (with retries, because the AudioWorklet is created asynchronously).
-
-Note: `masterVolume` is applied inside the synth, i.e. *before* the waveshaper — turning the volume down also reduces drive.
-
 ### Recording (`components/RecordingPanel.jsx`, `audio/recorder.js`)
 
 Recording is post-hoc analysis-ready capture — currently Etap 1 (upload + playback). Two formats:
@@ -102,8 +92,6 @@ Prefix everything with `guitarTab.` for consistency. Existing keys:
 - `guitarTab.soloSelectedTrack` — `'true'`/`'false'`. Global (not per-song) toggle: play only the selected track (alphaTab `changeTrackSolo`). No-op while "all tracks" is selected.
 - `guitarTab.backingTrack` — `'true'`/`'false'`. Global toggle, inverse of solo: mute the selected track so the rest plays as a synth backing track (alphaTab `changeTrackMute`). Mutually exclusive with solo (solo wins on conflicting stored values). No-op while "all tracks" is selected.
 - `guitarTab.loopCountIn` — `'true'`/`'false'`. One bar of metronome count-in before playback starts (loop-independent; the key name is historical).
-- `guitarTab.distortionFx` — `'true'`/`'false'`. Global toggle for the distortion effect (`audio/distortion.js`).
-- `guitarTab.distortionDrive` — `0..1`, drive amount for that effect.
 - `guitarTab.masterVolume`, `guitarTab.metronomeVolume` — `0..1`, global. Master volume is pushed to `at.masterVolume` right after the alphaTab instance is created; metronome volume is read via `metronomeVolumeRef`.
 - `guitarTab.bpmBySong` — map `{ songId: bpm }`. Absolute practice tempo (not a percent) restored in `scoreLoaded` via `playbackSpeed = saved / score.tempo`; written from `applyBpm` only, so the original tempo on load is never stored.
 - `guitarTab.recDeviceId` — last-used audio input deviceId.

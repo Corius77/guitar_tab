@@ -846,47 +846,6 @@
   box-shadow: 0 0 10px #6f93b030;
 }
 
-/* Przester */
-.at-dist {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.at-dist-toggle {
-  background: var(--surface-3);
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  color: var(--text-muted);
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  padding: 5px 9px;
-  line-height: 1;
-  cursor: pointer;
-  transition: background 0.15s, border-color 0.15s, box-shadow 0.15s, color 0.15s;
-  flex-shrink: 0;
-  font-family: inherit;
-}
-.at-dist-toggle:hover { background: #2a2218; border-color: var(--border-2); color: var(--text); }
-.at-dist-toggle--on {
-  background: #2a1410;
-  border-color: #b0704a60;
-  color: #d09a6e;
-  box-shadow: 0 0 10px #b0704a30;
-}
-/* włączony, ale nie gra — bo słychać też inne instrumenty */
-.at-dist-toggle--idle {
-  box-shadow: none;
-  opacity: 0.55;
-}
-
-.at-dist-drive {
-  width: 70px;
-  accent-color: #b0704a;
-  cursor: pointer;
-}
-
 @media (max-width: 640px) {
   .at-bottom-bar {
     left: 12px;
