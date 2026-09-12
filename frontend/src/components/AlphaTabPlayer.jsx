@@ -135,6 +135,7 @@ function saveBackingPref(on) {
 // ── Głośność (globalnie) i tempo (per utwór) ───────────────────────────────
 const MASTER_VOLUME_STORAGE_KEY = 'guitarTab.masterVolume'
 const METRO_VOLUME_STORAGE_KEY = 'guitarTab.metronomeVolume'
+const METRO_ON_STORAGE_KEY = 'guitarTab.metronomeOn'
 const BPM_STORAGE_KEY = 'guitarTab.bpmBySong'
 
 function loadVolume(key) {
@@ -148,6 +149,19 @@ function loadVolume(key) {
 
 function saveVolume(key, v) {
   try { localStorage.setItem(key, String(v)) } catch {}
+}
+
+// Włącznik metronomu — globalny, przeżywa zmianę utworu i odświeżenie strony.
+function loadMetroOnPref() {
+  try {
+    return localStorage.getItem(METRO_ON_STORAGE_KEY) === 'true'
+  } catch {
+    return false
+  }
+}
+
+function saveMetroOnPref(on) {
+  try { localStorage.setItem(METRO_ON_STORAGE_KEY, on ? 'true' : 'false') } catch {}
 }
 
 // Zapamiętane tempo ćwiczenia — wracasz do utworu i masz to samo BPM co ostatnio.
@@ -225,7 +239,7 @@ export default function AlphaTabPlayer({ fileUrl, songId, stats, onStatsChange }
   const containerRef = useRef(null)
   const apiRef = useRef(null)
   const originalBpmRef = useRef(null)
-  const metronomeOnRef = useRef(false)
+  const metronomeOnRef = useRef(loadMetroOnPref())
   const metronomeVolumeRef = useRef(loadVolume(METRO_VOLUME_STORAGE_KEY))
   const audioCtxRef = useRef(null)
 
@@ -295,7 +309,7 @@ export default function AlphaTabPlayer({ fileUrl, songId, stats, onStatsChange }
   const [masterVolume, setMasterVolume] = useState(() => loadVolume(MASTER_VOLUME_STORAGE_KEY))
   const [bpm, setBpm] = useState(null)
   const [bpmInput, setBpmInput] = useState('')
-  const [metronomeOn, setMetronomeOn] = useState(false)
+  const [metronomeOn, setMetronomeOn] = useState(loadMetroOnPref)
   const [metronomeVolume, setMetronomeVolume] = useState(() => loadVolume(METRO_VOLUME_STORAGE_KEY))
 
   // Modal skrótów
@@ -336,7 +350,7 @@ export default function AlphaTabPlayer({ fileUrl, songId, stats, onStatsChange }
   const [countInOn, setCountInOn] = useState(loadCountInPref)
   const [countingIn, setCountingIn] = useState(false)
 
-  useEffect(() => { metronomeOnRef.current = metronomeOn }, [metronomeOn])
+  useEffect(() => { metronomeOnRef.current = metronomeOn; saveMetroOnPref(metronomeOn) }, [metronomeOn])
   useEffect(() => { metronomeVolumeRef.current = metronomeVolume; saveVolume(METRO_VOLUME_STORAGE_KEY, metronomeVolume) }, [metronomeVolume])
   useEffect(() => { readyRef.current = ready }, [ready])
   useEffect(() => { bpmRef.current = bpm }, [bpm])
@@ -479,8 +493,6 @@ export default function AlphaTabPlayer({ fileUrl, songId, stats, onStatsChange }
         // zerowane — dzięki temu pasek zostaje widoczny ze starymi danymi aż
         // nowy utwór się załaduje, zamiast znikać i wskakiwać (płynne przejście).
         // scoreLoaded nadpisze je danymi nowego utworu.
-        setMetronomeOn(false)
-        metronomeOnRef.current = false
         setLoopOn(false)
         setLoopStart(1)
         setLoopEnd(1)
@@ -534,7 +546,8 @@ export default function AlphaTabPlayer({ fileUrl, songId, stats, onStatsChange }
           for (const event of e.events) {
             if (event.type !== ALPHATAB_METRONOME_EVENT_TYPE) continue
             const isAccent = event.metronomeNumerator === 0
-            playClick(audioCtxRef.current, isAccent, metronomeVolumeRef.current)
+            // Metronom przywrócony z zapisu → AudioContext może jeszcze nie istnieć
+            playClick(getAudioCtxRef.current(), isAccent, metronomeVolumeRef.current)
           }
         })
 

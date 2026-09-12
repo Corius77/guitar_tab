@@ -93,6 +93,7 @@ Prefix everything with `guitarTab.` for consistency. Existing keys:
 - `guitarTab.backingTrack` — `'true'`/`'false'`. Global toggle, inverse of solo: mute the selected track so the rest plays as a synth backing track (alphaTab `changeTrackMute`). Mutually exclusive with solo (solo wins on conflicting stored values). No-op while "all tracks" is selected.
 - `guitarTab.loopCountIn` — `'true'`/`'false'`. One bar of metronome count-in before playback starts (loop-independent; the key name is historical).
 - `guitarTab.masterVolume`, `guitarTab.metronomeVolume` — `0..1`, global. Master volume is pushed to `at.masterVolume` right after the alphaTab instance is created; metronome volume is read via `metronomeVolumeRef`.
+- `guitarTab.metronomeOn` — `'true'`/`'false'`, global. Restored on mount and kept across song changes (the old "reset on new song" was dropped). Restoring it does **not** start a practice session — only an explicit toggle (button / `M`) does; the click handler lazily creates the AudioContext, since nobody pressed `M` to create it.
 - `guitarTab.bpmBySong` — map `{ songId: bpm }`. Absolute practice tempo (not a percent) restored in `scoreLoaded` via `playbackSpeed = saved / score.tempo`; written from `applyBpm` only, so the original tempo on load is never stored.
 - `guitarTab.recDeviceId` — last-used audio input deviceId.
 - `guitarTab.recFormat` — `'webm'` or `'wav'`.
