@@ -280,8 +280,9 @@
   padding-left: 14px;
 }
 
-/* Transport (play / stop / głośność / metronom) w dolnym pasku */
+/* Transport (play / stop / głośność / metronom / solo-podkład) w dolnym pasku */
 .at-transport { gap: 8px; }
+.at-track-mix { display: flex; align-items: center; gap: 6px; }
 .at-transport .at-control-label input[type=range] { width: 64px; }
 
 /* ── Loop — grupa w dolnym pasku ─────────────────────────────── */
@@ -821,7 +822,7 @@
   border-color: var(--accent);
 }
 
-/* Solo — słychać tylko wybraną ścieżkę */
+/* Solo / podkład — przyciski w dolnym pasku obok metronomu */
 .at-track-solo {
   background: var(--surface-3);
   border: 1px solid var(--border);

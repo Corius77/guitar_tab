@@ -1392,6 +1392,33 @@ export default function AlphaTabPlayer({ fileUrl, songId, stats, onStatsChange }
               </label>
             )}
           </div>
+
+          {/* Solo / podkład — tylko gdy plik ma więcej niż jedną ścieżkę */}
+          {tracks.length > 1 && (
+            <div className="at-track-mix">
+              <button
+                className={`at-track-solo ${soloTrack && selectedTrackIndex != null ? 'at-track-solo--on' : ''}`}
+                onClick={toggleSolo}
+                disabled={selectedTrackIndex == null}
+                title={selectedTrackIndex == null
+                  ? 'Wybierz pojedynczą ścieżkę, żeby ją wyciszyć solo (T)'
+                  : soloTrack
+                    ? 'Wyłącz solo — słychać wszystkie ścieżki (T)'
+                    : 'Solo — słychać tylko wybraną ścieżkę (T)'}
+              >SOLO</button>
+
+              <button
+                className={`at-track-solo ${backingTrack && selectedTrackIndex != null ? 'at-track-solo--on' : ''}`}
+                onClick={toggleBacking}
+                disabled={selectedTrackIndex == null}
+                title={selectedTrackIndex == null
+                  ? 'Wybierz pojedynczą ścieżkę, żeby zrobić z reszty podkład (B)'
+                  : backingTrack
+                    ? 'Wyłącz podkład — słychać wszystkie ścieżki (B)'
+                    : 'Podkład — wycisz wybraną ścieżkę, gra reszta zespołu; działa też z metronomem (B)'}
+              >PODKŁAD</button>
+            </div>
+          )}
         </div>
 
         {/* BPM */}
@@ -1487,7 +1514,7 @@ export default function AlphaTabPlayer({ fileUrl, songId, stats, onStatsChange }
 
     <div className="at-wrap">
       <div className="at-controls">
-        {/* Ścieżka — przeniesione tu z dolnego paska (rzadziej używane) */}
+        {/* Wybór ścieżki (solo/podkład są w dolnym pasku przy transporcie) */}
         {ready && tracks.length > 1 && (
           <div className="at-track-select">
             <label className="at-track-select-label" htmlFor="at-track-select-input">Ścieżka:</label>
@@ -1504,28 +1531,6 @@ export default function AlphaTabPlayer({ fileUrl, songId, stats, onStatsChange }
                 </option>
               ))}
             </select>
-
-            <button
-              className={`at-track-solo ${soloTrack && selectedTrackIndex != null ? 'at-track-solo--on' : ''}`}
-              onClick={toggleSolo}
-              disabled={selectedTrackIndex == null}
-              title={selectedTrackIndex == null
-                ? 'Wybierz pojedynczą ścieżkę, żeby ją wyciszyć solo (T)'
-                : soloTrack
-                  ? 'Wyłącz solo — słychać wszystkie ścieżki (T)'
-                  : 'Solo — słychać tylko wybraną ścieżkę (T)'}
-            >SOLO</button>
-
-            <button
-              className={`at-track-solo ${backingTrack && selectedTrackIndex != null ? 'at-track-solo--on' : ''}`}
-              onClick={toggleBacking}
-              disabled={selectedTrackIndex == null}
-              title={selectedTrackIndex == null
-                ? 'Wybierz pojedynczą ścieżkę, żeby zrobić z reszty podkład (B)'
-                : backingTrack
-                  ? 'Wyłącz podkład — słychać wszystkie ścieżki (B)'
-                  : 'Podkład — wycisz wybraną ścieżkę, gra reszta zespołu; działa też z metronomem (B)'}
-            >PODKŁAD</button>
           </div>
         )}
 
