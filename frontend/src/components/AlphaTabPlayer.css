@@ -435,6 +435,8 @@
   position: relative;
   min-height: 320px;
   background: #efe7d6;
+  /* Drag po taktach zaznacza pętlę, nie tekst SVG */
+  user-select: none;
   /* Zamyka kursor alphaTab w osobnym kontekście — nie wyłazi nad
      pływające panele (pętla / tempo / ścieżka), które mają z-index 900 */
   isolation: isolate;
@@ -544,11 +546,36 @@
     0 0 40px #d2491b55;
 }
 
-.at-selection > div {
-  background: rgba(111, 147, 176, 0.14);
-  border-top: 1px solid rgba(111, 147, 176, 0.38);
-  border-bottom: 1px solid rgba(111, 147, 176, 0.38);
+/* Wbudowane podświetlenie playbackRange alphaTab — mamy własne (.at-loop-range),
+   które widać też przy wyłączonej pętli. */
+.at-selection { display: none; }
+
+/* ── Zakres pętli na tabulaturze ─────────────────────────────── */
+/* Ten sam układ współrzędnych co .at-bar-heat (patrz wyżej). */
+.at-loop-range {
+  position: absolute;
+  z-index: 2;
+  pointer-events: none;
 }
+
+.at-loop-range-cell {
+  position: absolute;
+  box-sizing: border-box;
+  background: rgba(111, 147, 176, 0.14);
+  border-top: 1px dashed rgba(111, 147, 176, 0.65);
+  border-bottom: 1px dashed rgba(111, 147, 176, 0.65);
+}
+.at-loop-range-cell--first { border-left: 3px solid rgba(111, 147, 176, 0.85); }
+.at-loop-range-cell--last { border-right: 3px solid rgba(111, 147, 176, 0.85); }
+
+/* Pętla gra — akcent zamiast przygaszonego niebieskiego */
+.at-loop-range-cell--on {
+  background: rgba(210, 73, 27, 0.10);
+  border-top: 1px solid rgba(210, 73, 27, 0.5);
+  border-bottom: 1px solid rgba(210, 73, 27, 0.5);
+}
+.at-loop-range-cell--on.at-loop-range-cell--first { border-left-color: #d2491b; }
+.at-loop-range-cell--on.at-loop-range-cell--last { border-right-color: #d2491b; }
 
 /* ── Overlay / loading ───────────────────────────────────────── */
 .at-overlay {

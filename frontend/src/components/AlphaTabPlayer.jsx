@@ -4,7 +4,7 @@ import KeyboardShortcutsModal from './KeyboardShortcutsModal'
 import RecordingPanel from './RecordingPanel'
 import RiffsModal from './RiffsModal'
 import { IconPlay, IconPause, IconStop, IconDrum, IconReset, IconLoop, IconClose, IconBookmark, IconWarning, IconMusicNote } from './icons'
-import { paintBarHeat, clearBarHeat } from './barHeatOverlay'
+import { paintBarHeat, clearBarHeat, paintLoopRange } from './barHeatOverlay'
 import { RAMP_GRADIENT_CSS, makeIntensityAt } from '../utils/practiceHeat'
 import { useAuth } from '../context/AuthContext'
 import { usePlayer } from '../context/PlayerContext'
@@ -279,8 +279,11 @@ export default function AlphaTabPlayer({ fileUrl, songId, stats, onStatsChange }
   const showRiffsRef = useRef(false)
   const showSavedLoopsRef = useRef(false)
 
-  // Drag-to-select na tabulaturze
-  const dragStartBarRef = useRef(null)
+  // Gest myszy na tabulaturze: { bar, beat, moved } od mousedown do mouseup
+  const dragRef = useRef(null)
+  const handleTabClickRef = useRef(null)
+  const setLoopRangeRef = useRef(null)
+  const repaintLoopRangeRef = useRef(null)
 
   // Aktualnie grany takt (1-indexed) — używany do pętli "od bieżącego taktu"
   const currentBarRef = useRef(0)
@@ -484,6 +487,7 @@ export default function AlphaTabPlayer({ fileUrl, songId, stats, onStatsChange }
   useEffect(() => {
     if (!fileUrl || !containerRef.current) return
     let destroyed = false
+    let removeMouseListeners = null
 
     const initAlphaTab = async () => {
       try {
@@ -530,7 +534,9 @@ export default function AlphaTabPlayer({ fileUrl, songId, stats, onStatsChange }
           player: {
             enablePlayer: true,
             enableCursor: true,
-            enableUserInteraction: true,
+            // Klik/drag obsługujemy sami (patrz "Mysz na tabulaturze") — wbudowana
+            // interakcja alphaTab kasuje playbackRange przy każdym kliku, czyli pętlę.
+            enableUserInteraction: false,
             soundFont: 'https://cdn.jsdelivr.net/npm/@coderline/alphatab@latest/dist/soundfont/sonivox.sf2',
             scrollElement: scrollEl,
             scrollOffsetY: -80, // trochę luzu nad taktem, żeby nie był przy samej krawędzi
@@ -607,8 +613,9 @@ export default function AlphaTabPlayer({ fileUrl, songId, stats, onStatsChange }
         at.renderFinished.on(() => {
           if (destroyed) return
           setLoading(false)
-          // Nowy układ systemów → nowe bounds, warstwa musi się przeliczyć
+          // Nowy układ systemów → nowe bounds, warstwy muszą się przeliczyć
           repaintBarHeatRef.current()
+          repaintLoopRangeRef.current()
         })
 
         // Syntezator dostaje kanały dopiero gdy player jest gotowy — solo/mute
@@ -633,7 +640,8 @@ export default function AlphaTabPlayer({ fileUrl, songId, stats, onStatsChange }
           const bars = []
           if (score?.masterBars) {
             for (let i = 0; i < score.masterBars.length; i++) {
-              bars.push({ index: i, start: score.masterBars[i].start })
+              const mb = score.masterBars[i]
+              bars.push({ index: i, start: mb.start, end: mb.start + mb.calculateDuration() })
             }
           }
           // Numerator z pierwszego taktu — dla akcentu przy odliczaniu
@@ -689,32 +697,44 @@ export default function AlphaTabPlayer({ fileUrl, songId, stats, onStatsChange }
           }
         })
 
-        // ── Wybór zakresu pętli kliknięciem/dragiem na tabulaturze ──────────
-        at.beatMouseDown.on((beat) => {
+        // ── Mysz na tabulaturze ─────────────────────────────────────────────
+        // Słuchamy zdarzeń DOM zamiast at.beatMouseDown.on(), bo tylko one
+        // niosą oryginalny MouseEvent (shiftKey, detail = licznik kliknięć).
+        //   klik            → seek do klikniętego beatu, pętla zostaje
+        //   klik poza pętlą → pętla off + seek
+        //   przeciągnięcie  → zakres pętli (na żywo, jeśli pętla gra)
+        //   Shift+klik      → dosuń bliższą krawędź zakresu do taktu
+        //   dwuklik         → zakres = ten jeden takt
+        const onBeatDown = (e) => {
+          const beat = e.detail
           if (destroyed || !beat) return
+          dragRef.current = { bar: beat.voice.bar.index + 1, beat, moved: false }
+        }
+        const onBeatMove = (e) => {
+          const beat = e.detail
+          const d = dragRef.current
+          if (destroyed || !beat || !d) return
           const bar = beat.voice.bar.index + 1
-          dragStartBarRef.current = bar
-          setLoopStart(bar)
-          setLoopEnd(bar)
-          loopStartRef.current = bar
-          loopEndRef.current = bar
-        })
-
-        at.beatMouseMove.on((beat) => {
-          if (destroyed || !beat || dragStartBarRef.current === null) return
-          const bar = beat.voice.bar.index + 1
-          const start = Math.min(dragStartBarRef.current, bar)
-          const end   = Math.max(dragStartBarRef.current, bar)
-          setLoopStart(start)
-          setLoopEnd(end)
-          loopStartRef.current = start
-          loopEndRef.current   = end
-        })
-
-        at.beatMouseUp.on(() => {
-          if (destroyed || dragStartBarRef.current === null) return
-          dragStartBarRef.current = null
-        })
+          // Ruch w obrębie taktu, w którym kliknięto, to jeszcze nie drag
+          if (!d.moved && bar === d.bar) return
+          d.moved = true
+          setLoopRangeRef.current(Math.min(d.bar, bar), Math.max(d.bar, bar))
+        }
+        const onBeatUp = (e) => {
+          const d = dragRef.current
+          if (destroyed || !d) return
+          dragRef.current = null
+          if (!d.moved) handleTabClickRef.current(d.bar, d.beat, e.originalEvent)
+        }
+        const el = containerRef.current
+        el.addEventListener('alphaTab.beatMouseDown', onBeatDown)
+        el.addEventListener('alphaTab.beatMouseMove', onBeatMove)
+        el.addEventListener('alphaTab.beatMouseUp', onBeatUp)
+        removeMouseListeners = () => {
+          el.removeEventListener('alphaTab.beatMouseDown', onBeatDown)
+          el.removeEventListener('alphaTab.beatMouseMove', onBeatMove)
+          el.removeEventListener('alphaTab.beatMouseUp', onBeatUp)
+        }
 
         at.load(fileUrl)
       } catch (e) {
@@ -729,6 +749,7 @@ export default function AlphaTabPlayer({ fileUrl, songId, stats, onStatsChange }
 
     return () => {
       destroyed = true
+      removeMouseListeners?.()
       endCurrentSession()
       cancelCountInRef.current?.()
       if (apiRef.current) {
@@ -1154,19 +1175,87 @@ export default function AlphaTabPlayer({ fileUrl, songId, stats, onStatsChange }
   }
 
   const applyLoopRange = (start, end) => {
-    if (!apiRef.current) return
+    const at = apiRef.current
+    if (!at) return
     const bars = barPositionsRef.current
     if (!bars.length) return
-    const startIdx = start - 1
-    const endIdx = end - 1
-    const startTick = bars[startIdx]?.start ?? 0
-    // endTick = początek następnego taktu, lub bardzo duża liczba dla ostatniego
-    const endTick = endIdx + 1 < bars.length ? bars[endIdx + 1].start : 99999999
-    apiRef.current.playbackRange = { startTick, endTick }
+    const startTick = bars[start - 1]?.start ?? 0
+    const endTick = bars[end - 1]?.end ?? bars[bars.length - 1].end
+    // Ustawienie playbackRange przeskakuje na jego początek — przy zmianie
+    // zakresu w trakcie grania (drag, [ ] { }) zostajemy tam, gdzie byliśmy,
+    // o ile to wciąż w środku pętli.
+    const prevTick = at.tickPosition
+    at.playbackRange = { startTick, endTick }
+    if (prevTick >= startTick && prevTick < endTick) at.tickPosition = prevTick
     // Z odliczaniem alphaTab ma się zatrzymać na końcu zakresu — zapętlamy sami
-    apiRef.current.isLooping = !countInOnRef.current
+    at.isLooping = !countInOnRef.current
   }
   applyLoopRangeRef.current = applyLoopRange
+
+  // Zakres zmieniony gdy pętla gra (drag, Shift+klik, [ ] { }, pola) → od razu
+  // do alphaTab. toggleLoop wcześniej ustawił to samo, powtórka jest neutralna.
+  useEffect(() => {
+    if (loopOn && ready) applyLoopRange(loopStart, loopEnd)
+  }, [loopOn, loopStart, loopEnd, ready]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const setLoopRange = (start, end) => {
+    setLoopStart(start)
+    setLoopEnd(end)
+    loopStartRef.current = start
+    loopEndRef.current = end
+  }
+  setLoopRangeRef.current = setLoopRange
+
+  // Klik na tabulaturze (bez przeciągnięcia) — patrz komentarz przy listenerach
+  const handleTabClick = (bar, beat, ev) => {
+    const at = apiRef.current
+    if (!at) return
+    const start = loopStartRef.current
+    const end = loopEndRef.current
+
+    if (ev?.shiftKey) {
+      if (bar < start) setLoopRange(bar, end)
+      else if (bar > end) setLoopRange(start, bar)
+      else if (bar - start < end - bar) setLoopRange(bar, end)
+      else setLoopRange(start, bar)
+      return
+    }
+    if (ev?.detail >= 2) {
+      setLoopRange(bar, bar)
+      return
+    }
+
+    // Klik poza grającą pętlą = "chcę gdzie indziej" → pętla off, zakres zostaje
+    if (loopOnRef.current && (bar < start || bar > end)) {
+      at.isLooping = false
+      at.playbackRange = null
+      setLoopOn(false)
+      loopOnRef.current = false
+    }
+    const tick = at.tickCache?.getBeatStart(beat) ?? barPositionsRef.current[bar - 1]?.start
+    if (tick == null) return
+    at.tickPosition = tick
+    currentBarRef.current = bar
+  }
+  handleTabClickRef.current = handleTabClick
+
+  // Zakres pętli narysowany na tabulaturze (własna warstwa, patrz barHeatOverlay)
+  const repaintLoopRange = () => {
+    const at = apiRef.current
+    const container = containerRef.current
+    if (!at || !container) return
+    const lookup = at.boundsLookup ?? at.renderer?.boundsLookup
+    const start = loopStartRef.current
+    const end = loopEndRef.current
+    // Domyślny zakres (cały utwór) bez włączonej pętli to nie zaznaczenie — nie rysuj
+    const wholeSong = start === 1 && end === totalBarsRef.current
+    if (wholeSong && !loopOnRef.current) paintLoopRange(container, lookup, null, null, false)
+    else paintLoopRange(container, lookup, start, end, loopOnRef.current)
+  }
+  repaintLoopRangeRef.current = repaintLoopRange
+  useEffect(() => {
+    if (ready) repaintLoopRange()
+  }, [loopStart, loopEnd, loopOn, ready]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const toggleLoop = () => {
     if (!apiRef.current) return
@@ -1458,7 +1547,6 @@ export default function AlphaTabPlayer({ fileUrl, songId, stats, onStatsChange }
                 value={loopStart}
                 onChange={handleLoopStartChange}
                 onKeyDown={e => e.key === 'Enter' && e.currentTarget.blur()}
-                disabled={loopOn}
                 title="Pierwszy takt pętli"
               />
               <span className="at-loop-dash">–</span>
@@ -1470,7 +1558,6 @@ export default function AlphaTabPlayer({ fileUrl, songId, stats, onStatsChange }
                 value={loopEnd}
                 onChange={handleLoopEndChange}
                 onKeyDown={e => e.key === 'Enter' && e.currentTarget.blur()}
-                disabled={loopOn}
                 title="Ostatni takt pętli"
               />
               <span className="at-loop-range-hint">/ {totalBars}</span>

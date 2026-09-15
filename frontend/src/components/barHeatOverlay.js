@@ -27,8 +27,50 @@ const LAYER_CLASS = 'at-bar-heat'
 // cokolwiek dalej jest czarna. Alfa tylko rozmywałaby barwy w papier
 // i rozjeżdżała je z legendą.
 
+// Wspólny mechanizm dla warstw "coś na każdym takcie": heat i zakres pętli.
+// `cellFor(numerTaktu)` zwraca { style, className } albo null (nie maluj).
+function paintBarLayer(container, layerClass, boundsLookup, cellFor) {
+  if (!container) return
+  if (!boundsLookup || !cellFor) {
+    clearBarLayer(container, layerClass)
+    return
+  }
+
+  let layer = container.querySelector(`:scope > .${layerClass}`)
+  if (!layer) {
+    layer = document.createElement('div')
+    layer.className = layerClass
+    container.insertBefore(layer, container.firstChild)
+  }
+
+  const frag = document.createDocumentFragment()
+  for (const system of boundsLookup.staffSystems ?? []) {
+    for (const barBounds of system.bars ?? []) {
+      // index w boundsLookup jest 0-based, takty w UI liczymy od 1
+      const spec = cellFor(barBounds.index + 1)
+      if (!spec) continue
+
+      const b = barBounds.visualBounds
+      const cell = document.createElement('div')
+      cell.className = spec.className
+      cell.style.left = `${b.x}px`
+      cell.style.top = `${b.y}px`
+      cell.style.width = `${b.w}px`
+      cell.style.height = `${b.h}px`
+      if (spec.background) cell.style.background = spec.background
+      frag.appendChild(cell)
+    }
+  }
+
+  layer.replaceChildren(frag)
+}
+
+function clearBarLayer(container, layerClass) {
+  container?.querySelector(`:scope > .${layerClass}`)?.remove()
+}
+
 export function clearBarHeat(container) {
-  container?.querySelector(`:scope > .${LAYER_CLASS}`)?.remove()
+  clearBarLayer(container, LAYER_CLASS)
 }
 
 /**
@@ -37,37 +79,23 @@ export function clearBarHeat(container) {
  * @param intensityAt (numer taktu 1-based) → 0–1; 0 = nie maluj
  */
 export function paintBarHeat(container, boundsLookup, intensityAt) {
-  if (!container) return
-  if (!boundsLookup || !intensityAt) {
-    clearBarHeat(container)
-    return
-  }
+  paintBarLayer(container, LAYER_CLASS, boundsLookup, intensityAt && ((bar) => {
+    const t = intensityAt(bar)
+    return t > 0 ? { className: 'at-bar-heat-cell', background: rampColorCss(t) } : null
+  }))
+}
 
-  let layer = container.querySelector(`:scope > .${LAYER_CLASS}`)
-  if (!layer) {
-    layer = document.createElement('div')
-    layer.className = LAYER_CLASS
-    container.insertBefore(layer, container.firstChild)
-  }
+// ── Zakres pętli ──────────────────────────────────────────────────────────
+// alphaTab ma własne podświetlenie playbackRange (.at-selection), ale znika
+// gdy pętla jest wyłączona — a zaznaczony zakres chcemy widzieć cały czas.
+// Rysujemy więc sami: przygaszony gdy pętla stoi, wyraźny gdy gra.
+const LOOP_LAYER_CLASS = 'at-loop-range'
 
-  const frag = document.createDocumentFragment()
-  for (const system of boundsLookup.staffSystems ?? []) {
-    for (const barBounds of system.bars ?? []) {
-      // index w boundsLookup jest 0-based, takty w UI liczymy od 1
-      const t = intensityAt(barBounds.index + 1)
-      if (t <= 0) continue
-
-      const b = barBounds.visualBounds
-      const cell = document.createElement('div')
-      cell.className = 'at-bar-heat-cell'
-      cell.style.left = `${b.x}px`
-      cell.style.top = `${b.y}px`
-      cell.style.width = `${b.w}px`
-      cell.style.height = `${b.h}px`
-      cell.style.background = rampColorCss(t)
-      frag.appendChild(cell)
-    }
-  }
-
-  layer.replaceChildren(frag)
+export function paintLoopRange(container, boundsLookup, start, end, on) {
+  const show = start != null && end != null && start <= end
+  paintBarLayer(container, LOOP_LAYER_CLASS, boundsLookup, show && ((bar) => {
+    if (bar < start || bar > end) return null
+    const edges = (bar === start ? ' at-loop-range-cell--first' : '') + (bar === end ? ' at-loop-range-cell--last' : '')
+    return { className: `at-loop-range-cell${on ? ' at-loop-range-cell--on' : ''}${edges}` }
+  }))
 }

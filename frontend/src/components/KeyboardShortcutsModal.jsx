@@ -67,6 +67,10 @@ const SHORTCUTS = [
       { keys: [']'], label: 'Takt startowy +1' },
       { keys: ['{'], label: 'Takt końcowy −1' },
       { keys: ['}'], label: 'Takt końcowy +1' },
+      { keys: ['klik'], label: 'Skok w to miejsce (pętla zostaje)' },
+      { keys: ['drag'], label: 'Zaznacz zakres pętli' },
+      { keys: ['Shift', 'klik'], label: 'Dosuń krawędź pętli do taktu' },
+      { keys: ['2× klik'], label: 'Pętla na jednym takcie' },
     ],
   },
 ]
