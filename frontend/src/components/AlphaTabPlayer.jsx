@@ -262,6 +262,7 @@ export default function AlphaTabPlayer({ fileUrl, songId, stats, onStatsChange }
   const countInOnRef = useRef(false)
   const countInTimerRef = useRef(null)
   const requestPlayPauseRef = useRef(null)
+  const startCountInRef = useRef(null)
   const cancelCountInRef = useRef(null)
   // Refy na funkcje — aktualizowane przy każdym renderze
   const applyBpmRef = useRef(null)
@@ -593,6 +594,14 @@ export default function AlphaTabPlayer({ fileUrl, songId, stats, onStatsChange }
             currentBarRef.current = bar
             lastTickRef.current = tick
           }
+        })
+
+        // Pętla z odliczaniem: alphaTab nie zapętla sam (isLooping=false), tylko
+        // zatrzymuje się na końcu zakresu i cofa na start. Tu klikamy takt
+        // i puszczamy kolejne okrążenie.
+        at.playerFinished.on(() => {
+          if (destroyed) return
+          if (loopOnRef.current && countInOnRef.current) startCountInRef.current?.()
         })
 
         at.renderFinished.on(() => {
@@ -1089,33 +1098,40 @@ export default function AlphaTabPlayer({ fileUrl, songId, stats, onStatsChange }
       return
     }
     if (!playingRef.current && countInOnRef.current) {
-      const ctx = getAudioCtxRef.current()
-      const beatsCount = timeSigNumeratorRef.current || 4
-      const period = 60 / (bpmRef.current || 120)
-      const t0 = ctx.currentTime + 0.1
-      for (let i = 0; i < beatsCount; i++) {
-        playClick(ctx, i === 0, metronomeVolumeRef.current, t0 + i * period)
-      }
-      setCountingIn(true)
-      startSessionIfNeededRef.current()
-      countInTimerRef.current = setTimeout(() => {
-        countInTimerRef.current = null
-        setCountingIn(false)
-        apiRef.current?.playPause()
-      }, Math.max(0, (t0 - ctx.currentTime + beatsCount * period) * 1000))
+      startCountIn()
     } else {
       at.playPause()
     }
   }
   requestPlayPauseRef.current = requestPlayPause
 
+  // Jeden takt klików, po nim start odtwarzania. Wspólne dla Play
+  // i każdego kolejnego okrążenia pętli (playerFinished).
+  const startCountIn = () => {
+    const ctx = getAudioCtxRef.current()
+    const beatsCount = timeSigNumeratorRef.current || 4
+    const period = 60 / (bpmRef.current || 120)
+    const t0 = ctx.currentTime + 0.1
+    for (let i = 0; i < beatsCount; i++) {
+      playClick(ctx, i === 0, metronomeVolumeRef.current, t0 + i * period)
+    }
+    setCountingIn(true)
+    startSessionIfNeededRef.current()
+    countInTimerRef.current = setTimeout(() => {
+      countInTimerRef.current = null
+      setCountingIn(false)
+      apiRef.current?.play()
+    }, Math.max(0, (t0 - ctx.currentTime + beatsCount * period) * 1000))
+  }
+  startCountInRef.current = startCountIn
+
   const toggleCountIn = () => {
-    setCountInOn(prev => {
-      const next = !prev
-      countInOnRef.current = next
-      saveCountInPref(next)
-      return next
-    })
+    const next = !countInOnRef.current
+    setCountInOn(next)
+    countInOnRef.current = next
+    saveCountInPref(next)
+    // Z odliczaniem pętlę obsługujemy sami (patrz playerFinished)
+    if (apiRef.current && loopOnRef.current) apiRef.current.isLooping = !next
   }
 
   // ── Loop ──────────────────────────────────────────────────────────────────
@@ -1147,7 +1163,8 @@ export default function AlphaTabPlayer({ fileUrl, songId, stats, onStatsChange }
     // endTick = początek następnego taktu, lub bardzo duża liczba dla ostatniego
     const endTick = endIdx + 1 < bars.length ? bars[endIdx + 1].start : 99999999
     apiRef.current.playbackRange = { startTick, endTick }
-    apiRef.current.isLooping = true
+    // Z odliczaniem alphaTab ma się zatrzymać na końcu zakresu — zapętlamy sami
+    apiRef.current.isLooping = !countInOnRef.current
   }
   applyLoopRangeRef.current = applyLoopRange
 
