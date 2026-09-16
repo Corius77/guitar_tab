@@ -268,6 +268,7 @@ export default function AlphaTabPlayer({ fileUrl, songId, stats, onStatsChange }
   const applyBpmRef = useRef(null)
   const toggleSoloRef = useRef(null)
   const toggleBackingRef = useRef(null)
+  const toggleCountInRef = useRef(null)
   const getAudioCtxRef = useRef(null)
   const toggleLoopRef = useRef(null)
   const clearLoopRef = useRef(null)
@@ -894,6 +895,12 @@ export default function AlphaTabPlayer({ fileUrl, songId, stats, onStatsChange }
           break
         }
 
+        // ── Odliczanie przed startem (1·2·3·4) ───────────────────────
+        case 'c':
+        case 'C':
+          toggleCountInRef.current()
+          break
+
         // ── Ścieżka — solo ───────────────────────────────────────────
         case 't':
         case 'T':
@@ -1154,6 +1161,7 @@ export default function AlphaTabPlayer({ fileUrl, songId, stats, onStatsChange }
     // Z odliczaniem pętlę obsługujemy sami (patrz playerFinished)
     if (apiRef.current && loopOnRef.current) apiRef.current.isLooping = !next
   }
+  toggleCountInRef.current = toggleCountIn
 
   // ── Loop ──────────────────────────────────────────────────────────────────
   const clampBar = (val, min, max) => Math.max(min, Math.min(max, val))
@@ -1576,8 +1584,8 @@ export default function AlphaTabPlayer({ fileUrl, songId, stats, onStatsChange }
               className={`at-loop-toggle at-loop-countin ${countInOn ? 'at-loop-toggle--on' : ''}`}
               onClick={toggleCountIn}
               title={countInOn
-                ? 'Odliczanie włączone — jeden takt metronomu przed każdym startem'
-                : 'Włącz krótkie odliczanie (jeden takt metronomu) przed startem odtwarzania'}
+                ? 'Odliczanie włączone — jeden takt metronomu przed każdym startem (C)'
+                : 'Włącz krótkie odliczanie (jeden takt metronomu) przed startem odtwarzania (C)'}
             >1·2·3·4</button>
 
             <button

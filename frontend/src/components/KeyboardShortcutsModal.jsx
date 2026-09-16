@@ -46,6 +46,7 @@ const SHORTCUTS = [
     icon: <IconDrum />,
     items: [
       { keys: ['M'], label: 'Włącz / wyłącz' },
+      { keys: ['C'], label: 'Odliczanie 1·2·3·4 przed startem' },
     ],
   },
   {
