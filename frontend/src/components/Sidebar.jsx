@@ -6,7 +6,8 @@ import { IconGuitar, IconChartLine, IconSearch, IconPlus, IconMusicNote } from '
 import './Sidebar.css'
 
 const ORDERING_OPTIONS = [
-  { value: '-created_at', label: 'Najnowsze' },
+  { value: '-recent_at', label: 'Ostatnio grane' },
+  { value: '-created_at', label: 'Ostatnio dodane' },
   { value: 'title', label: 'Tytuł A–Z' },
   { value: 'artist', label: 'Wykonawca A–Z' },
   { value: '-play_count', label: 'Najczęściej grane' },

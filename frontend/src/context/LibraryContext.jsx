@@ -11,7 +11,7 @@ export function LibraryProvider({ children }) {
   const [next, setNext] = useState(null)
   const [loading, setLoading] = useState(false)
   const [search, setSearch] = useState('')
-  const [ordering, setOrdering] = useState('-created_at')
+  const [ordering, setOrdering] = useState('-recent_at')
   const [page, setPage] = useState(1)
   const [showUpload, setShowUpload] = useState(false)
 
@@ -51,11 +51,22 @@ export function LibraryProvider({ children }) {
     setCount(c => c + 1)
   }
 
+  // Otwarcie utworu w playerze — przy sortowaniu „ostatnio grane” przesuwamy
+  // go na górę od razu, bez refetchu (backend już ma nowe last_opened_at)
+  const touchSong = useCallback((id) => {
+    if (ordering !== '-recent_at') return
+    setSongs(prev => {
+      const idx = prev.findIndex(s => s.id === id)
+      if (idx <= 0) return prev
+      return [prev[idx], ...prev.slice(0, idx), ...prev.slice(idx + 1)]
+    })
+  }, [ordering])
+
   return (
     <LibraryContext.Provider value={{
       songs, count, next, loading,
       search, setSearch, ordering, setOrdering,
-      loadMore, prependSong,
+      loadMore, prependSong, touchSong,
       showUpload, setShowUpload,
     }}>
       {children}

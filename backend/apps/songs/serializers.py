@@ -27,7 +27,7 @@ class SongListSerializer(serializers.ModelSerializer):
         fields = (
             'id', 'title', 'artist', 'album', 'year',
             'genre', 'difficulty', 'uploaded_by',
-            'play_count', 'videos_count', 'created_at', 'file_extension',
+            'play_count', 'videos_count', 'created_at', 'last_opened_at', 'file_extension',
         )
 
     def get_file_extension(self, obj):
@@ -55,10 +55,11 @@ class SongDetailSerializer(serializers.ModelSerializer):
             'id', 'title', 'artist', 'album', 'year',
             'genre', 'genre_id', 'difficulty', 'description',
             'tab_file', 'tab_file_url', 'uploaded_by',
-            'play_count', 'videos', 'created_at', 'updated_at',
+            'play_count', 'videos', 'created_at', 'updated_at', 'last_opened_at',
         )
         extra_kwargs = {
             'tab_file': {'write_only': True},
+            'last_opened_at': {'read_only': True},
         }
 
     def get_tab_file_url(self, obj):

@@ -5,6 +5,7 @@ import { getSongStats } from '../api/practice'
 import AlphaTabPlayer from '../components/AlphaTabPlayer'
 import HeatmapModal from '../components/HeatmapModal'
 import { useAuth } from '../context/AuthContext'
+import { useLibrary } from '../context/LibraryContext'
 import { IconPlay, IconVideo, IconPlus, IconEdit, IconClose, IconChartBar, IconChevronLeft } from '../components/icons'
 import './PlayerPage.css'
 import '../components/HeatmapModal.css'
@@ -14,6 +15,7 @@ const DIFF_LABELS = ['', 'Beginner', 'Easy', 'Intermediate', 'Hard', 'Expert']
 export default function PlayerPage() {
   const { id } = useParams()
   const { user } = useAuth()
+  const { touchSong } = useLibrary()
   const navigate = useNavigate()
   const [song, setSong] = useState(null)
   const [loading, setLoading] = useState(true)
@@ -152,7 +154,7 @@ export default function PlayerPage() {
       .then(({ data }) => {
         if (cancelled) return
         setSong(data)
-        playSong(id).catch(() => {})
+        playSong(id).then(() => touchSong(Number(id))).catch(() => {})
       })
       .catch(() => { if (!cancelled) setError('Tab not found.') })
       .finally(() => { if (!cancelled) setLoading(false) })

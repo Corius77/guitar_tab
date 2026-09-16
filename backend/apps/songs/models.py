@@ -3,6 +3,7 @@ from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
 from django.db import models
+from django.utils import timezone
 from django.utils.text import slugify
 
 User = get_user_model()
@@ -58,6 +59,8 @@ class Song(models.Model):
         User, on_delete=models.SET_NULL, null=True, related_name='songs'
     )
     play_count = models.PositiveIntegerField(default=0)
+    # Kiedy ostatnio otwarto w playerze — biblioteka sortuje po tym domyślnie
+    last_opened_at = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -68,7 +71,10 @@ class Song(models.Model):
         return f'{self.artist} – {self.title}'
 
     def increment_play_count(self):
-        Song.objects.filter(pk=self.pk).update(play_count=models.F('play_count') + 1)
+        Song.objects.filter(pk=self.pk).update(
+            play_count=models.F('play_count') + 1,
+            last_opened_at=timezone.now(),
+        )
 
 
 class SongVideo(models.Model):

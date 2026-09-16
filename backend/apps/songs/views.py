@@ -2,6 +2,7 @@ from rest_framework import generics, permissions, status, filters
 from rest_framework.parsers import MultiPartParser, FormParser
 from rest_framework.response import Response
 from rest_framework.views import APIView
+from django.db.models.functions import Coalesce
 from django_filters.rest_framework import DjangoFilterBackend
 
 from .models import Song, Genre, SongVideo
@@ -12,12 +13,16 @@ from .filters import SongFilter
 
 
 class SongListCreateView(generics.ListCreateAPIView):
-    queryset = Song.objects.select_related('genre', 'uploaded_by').all()
+    # recent_at = ostatnie otwarcie, a dla nigdy nie otwieranych data dodania —
+    # świeżo wgrany utwór ląduje na górze, dopóki nie zagra się czegoś innego
+    queryset = Song.objects.select_related('genre', 'uploaded_by').annotate(
+        recent_at=Coalesce('last_opened_at', 'created_at'),
+    )
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_class = SongFilter
     search_fields = ['title', 'artist', 'album']
-    ordering_fields = ['title', 'artist', 'play_count', 'created_at', 'year']
-    ordering = ['-created_at']
+    ordering_fields = ['title', 'artist', 'play_count', 'created_at', 'year', 'recent_at']
+    ordering = ['-recent_at']
     parser_classes = [MultiPartParser, FormParser]
 
     def get_serializer_class(self):
