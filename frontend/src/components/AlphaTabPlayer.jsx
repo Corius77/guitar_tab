@@ -608,7 +608,11 @@ export default function AlphaTabPlayer({ fileUrl, songId, stats, onStatsChange }
         // i puszczamy kolejne okrążenie.
         at.playerFinished.on(() => {
           if (destroyed) return
-          if (loopOnRef.current && countInOnRef.current) startCountInRef.current?.()
+          if (!loopOnRef.current || !countInOnRef.current) return
+          // Gdyby alphaTab jednak sam zapętlał (isLooping), muzyka leci dalej —
+          // odliczanie nałożyłoby się na nią zamiast ją poprzedzić.
+          if (at.isLooping) return
+          startCountInRef.current?.(loopStartRef.current)
         })
 
         at.renderFinished.on(() => {
@@ -1126,21 +1130,75 @@ export default function AlphaTabPlayer({ fileUrl, songId, stats, onStatsChange }
       return
     }
     if (!playingRef.current && countInOnRef.current) {
-      startCountIn()
+      startCountIn(barAtTick(at.tickPosition))
     } else {
       at.playPause()
     }
   }
   requestPlayPauseRef.current = requestPlayPause
 
+  // Numer taktu (1-indexed) dla pozycji w tickach.
+  const barAtTick = (tick) => {
+    const bars = barPositionsRef.current
+    if (tick == null || !bars.length) return currentBarRef.current || 1
+    for (let i = bars.length - 1; i >= 0; i--) {
+      if (tick >= bars[i].start) return i + 1
+    }
+    return 1
+  }
+
+  // Tempo obowiązujące na początku danego taktu. Utwory miewają zmiany tempa
+  // (automatyzacje), więc bazowe bpm utworu to za mało — odliczanie w złym
+  // tempie brzmi tak, jakby muzyka po nim wchodziła za szybko albo za wolno.
+  const scoreTempoAtBar = (bar) => {
+    let tempo = originalBpmRef.current ?? 120
+    const mbs = scoreRef.current?.masterBars
+    if (!mbs?.length) return tempo
+    const last = Math.min(Math.max(bar, 1), mbs.length)
+    for (let i = 0; i < last; i++) {
+      const mb = mbs[i]
+      const autos = mb?.tempoAutomations ?? (mb?.tempoAutomation ? [mb.tempoAutomation] : [])
+      for (const a of autos) {
+        // W takcie startowym liczy się tylko zmiana na jego początku
+        if (i === last - 1 && (a?.ratioPosition ?? 0) > 0) continue
+        if (typeof a?.value === 'number' && a.value > 0) tempo = a.value
+      }
+    }
+    return tempo
+  }
+
+  // Siatka odliczania dla taktu: ile klików i co ile sekund.
+  const countInGrid = (bar) => {
+    const mb = scoreRef.current?.masterBars?.[bar - 1]
+    const num = mb?.timeSignatureNumerator || timeSigNumeratorRef.current || 4
+    const den = mb?.timeSignatureDenominator || 4
+    // Tempo w MIDI zawsze dotyczy ćwierćnuty; playbackSpeed to nasze bpm/oryginalne
+    const speed = apiRef.current?.playbackSpeed
+      || ((bpmRef.current && originalBpmRef.current) ? bpmRef.current / originalBpmRef.current : 1)
+    const quarter = 60 / (scoreTempoAtBar(bar) * speed)
+    let beats = num
+    let beatQuarters = 4 / den
+    // Metra złożone (6/8, 9/8, 12/8) liczy się grupami po trzy ósemki
+    if (den === 8 && num > 3 && num % 3 === 0) {
+      beats = num / 3
+      beatQuarters = 1.5
+    }
+    return { beats, period: quarter * beatQuarters }
+  }
+
   // Jeden takt klików, po nim start odtwarzania. Wspólne dla Play
   // i każdego kolejnego okrążenia pętli (playerFinished).
-  const startCountIn = () => {
+  // `bar` — takt, od którego ruszy muzyka: stąd tempo i metrum odliczania.
+  const startCountIn = (bar) => {
+    // Dwa odliczania naraz to podwójne kliki nie w rytm — stare anulujemy
+    if (countInTimerRef.current) {
+      clearTimeout(countInTimerRef.current)
+      countInTimerRef.current = null
+    }
     const ctx = getAudioCtxRef.current()
-    const beatsCount = timeSigNumeratorRef.current || 4
-    const period = 60 / (bpmRef.current || 120)
+    const { beats, period } = countInGrid(bar || currentBarRef.current || 1)
     const t0 = ctx.currentTime + 0.1
-    for (let i = 0; i < beatsCount; i++) {
+    for (let i = 0; i < beats; i++) {
       playClick(ctx, i === 0, metronomeVolumeRef.current, t0 + i * period)
     }
     setCountingIn(true)
@@ -1149,7 +1207,7 @@ export default function AlphaTabPlayer({ fileUrl, songId, stats, onStatsChange }
       countInTimerRef.current = null
       setCountingIn(false)
       apiRef.current?.play()
-    }, Math.max(0, (t0 - ctx.currentTime + beatsCount * period) * 1000))
+    }, Math.max(0, (t0 - ctx.currentTime + beats * period) * 1000))
   }
   startCountInRef.current = startCountIn
 
