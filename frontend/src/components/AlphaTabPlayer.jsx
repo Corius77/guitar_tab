@@ -636,7 +636,7 @@ export default function AlphaTabPlayer({ fileUrl, songId, stats, onStatsChange }
           // Gdyby alphaTab jednak sam zapętlał (isLooping), muzyka leci dalej —
           // odliczanie nałożyłoby się na nią zamiast ją poprzedzić.
           if (at.isLooping) return
-          startCountInRef.current?.(loopStartRef.current)
+          startCountInRef.current?.(loopStartRef.current, true)
         })
 
         at.renderFinished.on(() => {
@@ -1213,7 +1213,8 @@ export default function AlphaTabPlayer({ fileUrl, songId, stats, onStatsChange }
   // Jeden takt klików, po nim start odtwarzania. Wspólne dla Play
   // i każdego kolejnego okrążenia pętli (playerFinished).
   // `bar` — takt, od którego ruszy muzyka: stąd tempo i metrum odliczania.
-  const startCountIn = (bar) => {
+  // `fromLoopEnd` — restart pętli (nie pierwsze Play), patrz stop() niżej.
+  const startCountIn = (bar, fromLoopEnd = false) => {
     // Dwa odliczania naraz to podwójne kliki nie w rytm — stare anulujemy
     if (countInTimerRef.current) {
       clearTimeout(countInTimerRef.current)
@@ -1230,7 +1231,16 @@ export default function AlphaTabPlayer({ fileUrl, songId, stats, onStatsChange }
     countInTimerRef.current = setTimeout(() => {
       countInTimerRef.current = null
       setCountingIn(false)
-      apiRef.current?.play()
+      const at = apiRef.current
+      if (!at) return
+      // Przy restarcie pętli samo play() nie wystarcza: po kilku okrążeniach
+      // synth alphaTab się rozjeżdża — zdarzenia MIDI zaczynają wyprzedzać dźwięk
+      // (metronom przyspiesza), a w końcu odtwarzanie staje na amen. Dodatkowy
+      // stop() (zeruje bufory i cofa na początek zakresu) to kasuje — sprawdzone
+      // pomiarem: bez niego rozjazd w 3. okrążeniu, z nim 4+ równe.
+      // Przy pierwszym Play nie wolno go wołać, bo skoczyłby z pozycji kursora.
+      if (fromLoopEnd) at.stop()
+      at.play()
     }, Math.max(0, (t0 - ctx.currentTime + beats * period) * 1000))
   }
   startCountInRef.current = startCountIn
