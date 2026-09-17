@@ -13,6 +13,8 @@ import { startSession, endSession, getSavedLoops, createSavedLoop, deleteSavedLo
 const BPM_MIN = 20
 const BPM_MAX = 300
 const ALPHATAB_METRONOME_EVENT_TYPE = 242
+// Rozdzielczość MIDI alphaTab: ticków na ćwierćnutę
+const ALPHATAB_QUARTER_TICKS = 960
 
 // Mapa takt → ile razy zagrany, spakowana w zakresy sąsiednich taktów o tej
 // samej liczbie przejść. Backend trzyma to jako LoopEventy (takt od–do × ile),
@@ -67,6 +69,17 @@ function playClick(audioCtx, isAccent, volume, when) {
   gain.connect(audioCtx.destination)
   osc.start(startAt)
   osc.stop(startAt + duration + 0.005)
+}
+
+// O ile sekund odsunąć klik, żeby trafił w moment, w którym zdarzenie MIDI
+// naprawdę zabrzmi. `bpm` to tempo, w którym utwór faktycznie gra.
+// Zwraca 0, gdy zdarzenie już minęło albo brakuje danych.
+const MAX_CLICK_DELAY = 0.5
+
+function clickDelayFromTicks(tickDiff, bpm) {
+  if (!bpm || !(tickDiff > 0)) return 0
+  const ticksPerSecond = (ALPHATAB_QUARTER_TICKS * bpm) / 60
+  return Math.min(tickDiff / ticksPerSecond, MAX_CLICK_DELAY)
 }
 
 // ── Pamięć ostatnio wybranej ścieżki dla utworu ─────────────────────────────
@@ -291,6 +304,10 @@ export default function AlphaTabPlayer({ fileUrl, songId, stats, onStatsChange }
 
   // Metrum pierwszego taktu — akcent na "raz" przy odliczaniu przed pętlą
   const timeSigNumeratorRef = useRef(4)
+
+  // Tempo, w którym utwór faktycznie gra (uwzględnia zmiany tempa w utworze
+  // i nasz suwak BPM) — do przeliczania ticków na sekundy przy metronomie.
+  const modifiedTempoRef = useRef(null)
 
   // Ścieżki (tracki) pliku GP
   const scoreRef = useRef(null)
@@ -551,11 +568,17 @@ export default function AlphaTabPlayer({ fileUrl, songId, stats, onStatsChange }
 
         at.midiEventsPlayed.on((e) => {
           if (destroyed || !metronomeOnRef.current) return
+          const ctx = getAudioCtxRef.current()
           for (const event of e.events) {
             if (event.type !== ALPHATAB_METRONOME_EVENT_TYPE) continue
             const isAccent = event.metronomeNumerator === 0
+            // alphaTab potrafi zgłosić klik, zanim ten takt naprawdę zabrzmi — przy
+            // tempie innym niż oryginalne nawet o ~150 ms, przez co po zawinięciu
+            // pętli kliki przyspieszają do tempa oryginalnego. Różnica ticków między
+            // zdarzeniem a pozycją odtwarzania mówi, o ile klik dosunąć.
             // Metronom przywrócony z zapisu → AudioContext może jeszcze nie istnieć
-            playClick(getAudioCtxRef.current(), isAccent, metronomeVolumeRef.current)
+            const delay = clickDelayFromTicks(event.tick - at.tickPosition, modifiedTempoRef.current)
+            playClick(ctx, isAccent, metronomeVolumeRef.current, ctx.currentTime + delay)
           }
         })
 
@@ -575,6 +598,7 @@ export default function AlphaTabPlayer({ fileUrl, songId, stats, onStatsChange }
           if (destroyed) return
           setCurrentTime(e.currentTime)
           setEndTime(e.endTime)
+          if (e.modifiedTempo > 0) modifiedTempoRef.current = e.modifiedTempo
 
           // Aktualnie grany takt + zliczanie przejść przez takt.
           // Kolorowanie mierzy, ile razy takt faktycznie przeleciał pod
