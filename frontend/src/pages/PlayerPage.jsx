@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useRef } from 'react'
 import { useParams, Link, useNavigate } from 'react-router-dom'
 import { getSong, deleteSong, playSong, addSongVideo, deleteSongVideo, updateSongVideo } from '../api/songs'
 import { getSongStats } from '../api/practice'
@@ -24,9 +24,10 @@ export default function PlayerPage() {
   const [stats, setStats] = useState(null)
   const [heatmapOpen, setHeatmapOpen] = useState(false)
   const [showYoutube, setShowYoutube] = useState(false)
-  const [ytPlayer, setYtPlayer] = useState(null)
   const [activeVideoIndex, setActiveVideoIndex] = useState(0)
-  const [lastYtTimes, setLastYtTimes] = useState({}) // { videoId: time }
+  const ytPlayerRef = useRef(null)
+  const ytHostRef = useRef(null)
+  const lastYtTimesRef = useRef({}) // { videoId: czas }
 
   const getYouTubeId = (url) => {
     if (!url) return null
@@ -53,11 +54,14 @@ export default function PlayerPage() {
     if (!window.confirm('Remove this video?')) return
     try {
       await deleteSongVideo(videoId)
+      const removedIndex = song.videos.findIndex(v => v.id === videoId)
       const newVideos = song.videos.filter(v => v.id !== videoId)
       setSong(prev => ({ ...prev, videos: newVideos }))
-      if (activeVideoIndex >= newVideos.length) {
-        setActiveVideoIndex(Math.max(0, newVideos.length - 1))
-      }
+      // usuniecie karty przed aktywna przesuwa indeksy - trzymaj sie tego samego wideo
+      setActiveVideoIndex(idx => {
+        const next = removedIndex < idx ? idx - 1 : idx
+        return Math.min(Math.max(0, next), Math.max(0, newVideos.length - 1))
+      })
     } catch {
       alert('Failed to delete video.')
     }
@@ -78,29 +82,42 @@ export default function PlayerPage() {
     }
   }
 
+  const videos = song?.videos
+  const activeVideo = videos?.[activeVideoIndex]
+  const activeVideoId = getYouTubeId(activeVideo?.url)
+
+  const saveYtTime = () => {
+    const p = ytPlayerRef.current
+    if (!p || !p.getCurrentTime || !activeVideoId) return
+    try {
+      lastYtTimesRef.current[activeVideoId] = p.getCurrentTime()
+    } catch { /* ramka juz zamknieta */ }
+  }
+
   // YouTube API initialization
   useEffect(() => {
-    if (!song?.videos?.length || !showYoutube) return
-    const currentVideo = song.videos[activeVideoIndex]
-    const videoId = getYouTubeId(currentVideo?.url)
-    if (!videoId) return
-
-    if (!window.YT) {
-      const tag = document.createElement('script')
-      tag.src = "https://www.youtube.com/iframe_api"
-      const firstScriptTag = document.getElementsByTagName('script')[0]
-      firstScriptTag.parentNode.insertBefore(tag, firstScriptTag)
-    }
+    if (!showYoutube || !activeVideoId) return
+    let cancelled = false
 
     const createPlayer = () => {
-      new window.YT.Player('youtube-player-element', {
-        videoId: videoId,
+      const host = ytHostRef.current
+      if (cancelled || !host) return
+      // YT podmienia podany element na <iframe>, wiec przy kazdej zmianie karty
+      // dajemy mu swiezy kontener. Bez tego drugi Player tylko podpina sie do
+      // starej ramki (ten sam id) i wideo sie nie przelacza.
+      host.innerHTML = ''
+      const mount = document.createElement('div')
+      host.appendChild(mount)
+      ytPlayerRef.current = new window.YT.Player(mount, {
+        videoId: activeVideoId,
         playerVars: {
           'autoplay': 1,
-          'start': Math.floor(lastYtTimes[videoId] || 0),
+          'start': Math.floor(lastYtTimesRef.current[activeVideoId] || 0),
         },
         events: {
-          'onReady': (event) => setYtPlayer(event.target),
+          'onReady': (event) => {
+            if (cancelled) { try { event.target.destroy() } catch { /* ignore */ } }
+          },
         }
       })
     }
@@ -108,32 +125,37 @@ export default function PlayerPage() {
     if (window.YT && window.YT.Player) {
       createPlayer()
     } else {
-      window.onYouTubeIframeAPIReady = createPlayer
+      if (!window.YT) {
+        const tag = document.createElement('script')
+        tag.src = "https://www.youtube.com/iframe_api"
+        const firstScriptTag = document.getElementsByTagName('script')[0]
+        firstScriptTag.parentNode.insertBefore(tag, firstScriptTag)
+      }
+      const prevReady = window.onYouTubeIframeAPIReady
+      window.onYouTubeIframeAPIReady = () => {
+        if (typeof prevReady === 'function') prevReady()
+        createPlayer()
+      }
     }
 
     return () => {
-      setYtPlayer(null)
+      cancelled = true
+      saveYtTime()
+      try { ytPlayerRef.current?.destroy?.() } catch { /* ignore */ }
+      ytPlayerRef.current = null
+      if (ytHostRef.current) ytHostRef.current.innerHTML = ''
     }
-  }, [showYoutube, activeVideoIndex, song?.videos])
+  }, [showYoutube, activeVideoId]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  const handleCloseYoutube = () => {
-    if (ytPlayer && ytPlayer.getCurrentTime) {
-      const currentVideo = song.videos[activeVideoIndex]
-      const vId = getYouTubeId(currentVideo.url)
-      setLastYtTimes(prev => ({ ...prev, [vId]: ytPlayer.getCurrentTime() }))
-    }
+  const handleCloseYoutube = useCallback(() => {
+    saveYtTime()
     setShowYoutube(false)
-    setYtPlayer(null)
-  }
+  }, [activeVideoId]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleSwitchVideo = (index) => {
-    if (ytPlayer && ytPlayer.getCurrentTime) {
-      const currentVideo = song.videos[activeVideoIndex]
-      const vId = getYouTubeId(currentVideo.url)
-      setLastYtTimes(prev => ({ ...prev, [vId]: ytPlayer.getCurrentTime() }))
-    }
+    if (index === activeVideoIndex) return
+    saveYtTime()
     setActiveVideoIndex(index)
-    setYtPlayer(null) 
   }
 
   const fetchStats = useCallback(() => {
@@ -292,7 +314,7 @@ export default function PlayerPage() {
               <button className="player-youtube-close" onClick={handleCloseYoutube}><IconClose /></button>
             </div>
             <div className="player-youtube-body">
-              <div id="youtube-player-element"></div>
+              <div className="player-youtube-mount" ref={ytHostRef}></div>
             </div>
           </div>
         </div>

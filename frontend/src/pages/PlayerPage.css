@@ -251,7 +251,7 @@
   background: #000;
 }
 
-.player-youtube-body iframe, #youtube-player-element {
+.player-youtube-body iframe, .player-youtube-mount {
   aspect-ratio: 16 / 9;
   width: 100% !important;
   height: auto !important;
