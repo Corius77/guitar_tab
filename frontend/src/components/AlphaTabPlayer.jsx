@@ -341,6 +341,8 @@ export default function AlphaTabPlayer({ fileUrl, songId, stats, onStatsChange }
 
   // Gest myszy na tabulaturze: { bar, beat, moved } od mousedown do mouseup
   const dragRef = useRef(null)
+  // Takt ostatniego kliku/dragu — od niego Shift+klik zaznacza zakres (gdy pętla off)
+  const selectAnchorRef = useRef(null)
   const handleTabClickRef = useRef(null)
   const setLoopRangeRef = useRef(null)
   const repaintLoopRangeRef = useRef(null)
@@ -778,34 +780,103 @@ export default function AlphaTabPlayer({ fileUrl, songId, stats, onStatsChange }
         //   klik            → seek do klikniętego beatu, pętla zostaje
         //   klik poza pętlą → pętla off + seek
         //   przeciągnięcie  → zakres pętli (na żywo, jeśli pętla gra)
-        //   Shift+klik      → dosuń bliższą krawędź zakresu do taktu
+        //   Shift+klik      → pętla off: zakres od ostatniego kliku/dragu;
+        //                     pętla on: dosuń bliższą krawędź zakresu do taktu
         //   dwuklik         → zakres = ten jeden takt
-        const onBeatDown = (e) => {
-          const beat = e.detail
-          if (destroyed || !beat) return
-          dragRef.current = { bar: beat.voice.bar.index + 1, beat, moved: false }
-        }
-        const onBeatMove = (e) => {
-          const beat = e.detail
-          const d = dragRef.current
-          if (destroyed || !beat || !d) return
-          const bar = beat.voice.bar.index + 1
+        //
+        // Zakres dłuższy niż ekran: przeciągnięcie przy górnej/dolnej krawędzi
+        // przewija widok samo (patrz dragAutoScroll), a Shift+klik po zwykłym
+        // kliku przy wyłączonej pętli zaznacza od klikniętego taktu — klik,
+        // przewiń kółkiem, Shift+klik.
+        const el = containerRef.current
+        const scroller = el.closest('.app-main') || document.scrollingElement
+        selectAnchorRef.current = null // kotwica z poprzedniego utworu nie ma sensu
+
+        const dragToBar = (d, bar) => {
           // Ruch w obrębie taktu, w którym kliknięto, to jeszcze nie drag
           if (!d.moved && bar === d.bar) return
           d.moved = true
           setLoopRangeRef.current(Math.min(d.bar, bar), Math.max(d.bar, bar))
         }
+
+        // Przewijanie przy krawędzi w trakcie dragu. Kursor stoi, więc alphaTab
+        // nie śle beatMouseMove — takt pod kursorem liczymy sami z boundsLookup
+        // (te same współrzędne co alphaTab: względem kontenera).
+        const EDGE = 70        // px od krawędzi, gdzie zaczyna się przewijanie
+        const MAX_SPEED = 22   // px na klatkę przy samej krawędzi / poza nią
+        const dragAutoScroll = () => {
+          const d = dragRef.current
+          if (destroyed || !d) return
+          const view = scroller.getBoundingClientRect()
+          const top = Math.max(view.top, 0)
+          const bottom = Math.min(view.bottom, window.innerHeight)
+          let dy = 0
+          if (d.y < top + EDGE) dy = -MAX_SPEED * Math.min(1, (top + EDGE - d.y) / EDGE)
+          else if (d.y > bottom - EDGE) dy = MAX_SPEED * Math.min(1, (d.y - bottom + EDGE) / EDGE)
+          if (dy) {
+            const before = scroller.scrollTop
+            scroller.scrollTop += dy
+            if (scroller.scrollTop !== before) {
+              const rect = el.getBoundingClientRect()
+              // Kursor nad paskiem narzędzi / poza oknem → bierzemy skraj widoku
+              const y = Math.min(Math.max(d.y, top + 1), bottom - 1)
+              const lookup = apiRef.current?.renderer?.boundsLookup
+              const beat = lookup?.getBeatAtPos(d.x - rect.left, y - rect.top)
+              if (beat) dragToBar(d, beat.voice.bar.index + 1)
+            }
+          }
+          d.raf = requestAnimationFrame(dragAutoScroll)
+        }
+        const onDocMove = (e) => {
+          const d = dragRef.current
+          if (!d) return
+          d.x = e.clientX
+          d.y = e.clientY
+        }
+        const endDrag = () => {
+          const d = dragRef.current
+          if (d?.raf) cancelAnimationFrame(d.raf)
+          document.removeEventListener('mousemove', onDocMove)
+          document.removeEventListener('mouseup', onDocUp)
+          dragRef.current = null
+        }
+        // Puszczenie myszy poza tabulaturą (np. nad paskiem przy przewijaniu) —
+        // alphaTab wtedy nie śle beatMouseUp, a drag nie może wisieć dalej.
+        // Kolejność: beatMouseUp na kontenerze leci przed tym (bąbelkowanie).
+        const onDocUp = () => endDrag()
+
+        const onBeatDown = (e) => {
+          const beat = e.detail
+          if (destroyed || !beat) return
+          const oe = e.originalEvent
+          endDrag()
+          dragRef.current = {
+            bar: beat.voice.bar.index + 1, beat, moved: false,
+            x: oe?.clientX ?? 0, y: oe?.clientY ?? 0, raf: null,
+          }
+          document.addEventListener('mousemove', onDocMove)
+          document.addEventListener('mouseup', onDocUp)
+          dragRef.current.raf = requestAnimationFrame(dragAutoScroll)
+        }
+        const onBeatMove = (e) => {
+          const beat = e.detail
+          const d = dragRef.current
+          if (destroyed || !beat || !d) return
+          dragToBar(d, beat.voice.bar.index + 1)
+        }
         const onBeatUp = (e) => {
           const d = dragRef.current
           if (destroyed || !d) return
-          dragRef.current = null
+          endDrag()
           if (!d.moved) handleTabClickRef.current(d.bar, d.beat, e.originalEvent)
+          // Koniec dragu to nowy punkt zaczepienia dla Shift+klika
+          else selectAnchorRef.current = d.bar
         }
-        const el = containerRef.current
         el.addEventListener('alphaTab.beatMouseDown', onBeatDown)
         el.addEventListener('alphaTab.beatMouseMove', onBeatMove)
         el.addEventListener('alphaTab.beatMouseUp', onBeatUp)
         removeMouseListeners = () => {
+          endDrag()
           el.removeEventListener('alphaTab.beatMouseDown', onBeatDown)
           el.removeEventListener('alphaTab.beatMouseMove', onBeatMove)
           el.removeEventListener('alphaTab.beatMouseUp', onBeatUp)
@@ -1360,12 +1431,22 @@ export default function AlphaTabPlayer({ fileUrl, songId, stats, onStatsChange }
     const end = loopEndRef.current
 
     if (ev?.shiftKey) {
+      // Pętla wyłączona i był wcześniej klik → zaznacz od tamtego taktu do tego,
+      // jak przy zaznaczaniu tekstu. Działa przez przewijanie, więc zakres może
+      // być dłuższy niż ekran. Kotwica zostaje — kolejny Shift+klik poprawia koniec.
+      const anchor = selectAnchorRef.current
+      if (!loopOnRef.current && anchor != null) {
+        setLoopRange(Math.min(anchor, bar), Math.max(anchor, bar))
+        return
+      }
+      // Pętla gra → dosuń bliższą krawędź
       if (bar < start) setLoopRange(bar, end)
       else if (bar > end) setLoopRange(start, bar)
       else if (bar - start < end - bar) setLoopRange(bar, end)
       else setLoopRange(start, bar)
       return
     }
+    selectAnchorRef.current = bar
     if (ev?.detail >= 2) {
       setLoopRange(bar, bar)
       return
