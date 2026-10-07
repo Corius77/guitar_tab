@@ -71,6 +71,52 @@ function playClick(audioCtx, isAccent, volume, when) {
   osc.stop(startAt + duration + 0.005)
 }
 
+// Odliczanie 1·2·3·4 — inna barwa niż metronom, żeby było słychać, kiedy kończy
+// się odliczanie i rusza muzyka. Coś jak pałeczki stuknięte o siebie: krótki
+// szum przez wąski pasmowy filtr + wysoki ton, zamiast „piknięcia” metronomu.
+function playCountInClick(audioCtx, isAccent, volume, when) {
+  if (!audioCtx) return
+  if (audioCtx.state === 'suspended') audioCtx.resume()
+
+  const startAt = when ?? audioCtx.currentTime
+  const duration = 0.035
+  const freq = isAccent ? 2600 : 2100
+  const gainPeak = volume * (isAccent ? 1.0 : 0.7)
+
+  // szum — „drewniany” atak
+  const len = Math.ceil(audioCtx.sampleRate * duration)
+  const buf = audioCtx.createBuffer(1, len, audioCtx.sampleRate)
+  const data = buf.getChannelData(0)
+  for (let i = 0; i < len; i++) data[i] = Math.random() * 2 - 1
+  const noise = audioCtx.createBufferSource()
+  noise.buffer = buf
+  const bp = audioCtx.createBiquadFilter()
+  bp.type = 'bandpass'
+  bp.frequency.setValueAtTime(freq, startAt)
+  bp.Q.setValueAtTime(6, startAt)
+  const noiseGain = audioCtx.createGain()
+  noiseGain.gain.setValueAtTime(gainPeak * 1.6, startAt)
+  noiseGain.gain.exponentialRampToValueAtTime(0.001, startAt + duration)
+  noise.connect(bp)
+  bp.connect(noiseGain)
+  noiseGain.connect(audioCtx.destination)
+
+  // ton pod szumem — daje wysokość (akcent na „1” wyżej)
+  const osc = audioCtx.createOscillator()
+  osc.type = 'square'
+  osc.frequency.setValueAtTime(freq / 2, startAt)
+  const oscGain = audioCtx.createGain()
+  oscGain.gain.setValueAtTime(gainPeak * 0.35, startAt)
+  oscGain.gain.exponentialRampToValueAtTime(0.001, startAt + duration * 0.8)
+  osc.connect(oscGain)
+  oscGain.connect(audioCtx.destination)
+
+  noise.start(startAt)
+  noise.stop(startAt + duration + 0.005)
+  osc.start(startAt)
+  osc.stop(startAt + duration + 0.005)
+}
+
 // O ile sekund odsunąć klik, żeby trafił w moment, w którym zdarzenie MIDI
 // naprawdę zabrzmi. `bpm` to tempo, w którym utwór faktycznie gra.
 // Zwraca 0, gdy zdarzenie już minęło albo brakuje danych.
@@ -1224,7 +1270,7 @@ export default function AlphaTabPlayer({ fileUrl, songId, stats, onStatsChange }
     const { beats, period } = countInGrid(bar || currentBarRef.current || 1)
     const t0 = ctx.currentTime + 0.1
     for (let i = 0; i < beats; i++) {
-      playClick(ctx, i === 0, metronomeVolumeRef.current, t0 + i * period)
+      playCountInClick(ctx, i === 0, metronomeVolumeRef.current, t0 + i * period)
     }
     setCountingIn(true)
     startSessionIfNeededRef.current()
