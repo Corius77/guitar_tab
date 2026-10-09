@@ -46,6 +46,25 @@ const REPEATABLE_KEYS = new Set([
 
 // ── Web Audio metronome ────────────────────────────────────────────────────
 // `when` (opcjonalne) — czas audioCtx, na który zaplanować klik (sec).
+// Wspólne wyjście klików: limiter przed głośnikami. Głośność metronomu idzie
+// powyżej 100%, więc bez niego głośne kliki by przesterowały (twardy clip).
+const clickOutByCtx = new WeakMap()
+
+function clickOut(audioCtx) {
+  let out = clickOutByCtx.get(audioCtx)
+  if (!out) {
+    out = audioCtx.createDynamicsCompressor()
+    out.threshold.value = -3
+    out.knee.value = 0
+    out.ratio.value = 20
+    out.attack.value = 0
+    out.release.value = 0.05
+    out.connect(audioCtx.destination)
+    clickOutByCtx.set(audioCtx, out)
+  }
+  return out
+}
+
 function playClick(audioCtx, isAccent, volume, when) {
   if (!audioCtx) return
   if (audioCtx.state === 'suspended') audioCtx.resume()
@@ -66,7 +85,7 @@ function playClick(audioCtx, isAccent, volume, when) {
   gain.gain.exponentialRampToValueAtTime(0.001, startAt + duration)
 
   osc.connect(gain)
-  gain.connect(audioCtx.destination)
+  gain.connect(clickOut(audioCtx))
   osc.start(startAt)
   osc.stop(startAt + duration + 0.005)
 }
@@ -99,7 +118,7 @@ function playCountInClick(audioCtx, isAccent, volume, when) {
   noiseGain.gain.exponentialRampToValueAtTime(0.001, startAt + duration)
   noise.connect(bp)
   bp.connect(noiseGain)
-  noiseGain.connect(audioCtx.destination)
+  noiseGain.connect(clickOut(audioCtx))
 
   // ton pod szumem — daje wysokość (akcent na „1” wyżej)
   const osc = audioCtx.createOscillator()
@@ -109,7 +128,7 @@ function playCountInClick(audioCtx, isAccent, volume, when) {
   oscGain.gain.setValueAtTime(gainPeak * 0.35, startAt)
   oscGain.gain.exponentialRampToValueAtTime(0.001, startAt + duration * 0.8)
   osc.connect(oscGain)
-  oscGain.connect(audioCtx.destination)
+  oscGain.connect(clickOut(audioCtx))
 
   noise.start(startAt)
   noise.stop(startAt + duration + 0.005)
@@ -197,10 +216,13 @@ const METRO_VOLUME_STORAGE_KEY = 'guitarTab.metronomeVolume'
 const METRO_ON_STORAGE_KEY = 'guitarTab.metronomeOn'
 const BPM_STORAGE_KEY = 'guitarTab.bpmBySong'
 
-function loadVolume(key) {
+// Metronom może iść ponad 100% — przy głośnym podkładzie/gitarze 1.0 to za mało.
+const METRO_VOLUME_MAX = 3
+
+function loadVolume(key, max = 1) {
   try {
     const raw = parseFloat(localStorage.getItem(key))
-    return isNaN(raw) ? 1 : Math.max(0, Math.min(1, raw))
+    return isNaN(raw) ? 1 : Math.max(0, Math.min(max, raw))
   } catch {
     return 1
   }
@@ -299,7 +321,7 @@ export default function AlphaTabPlayer({ fileUrl, songId, stats, onStatsChange }
   const apiRef = useRef(null)
   const originalBpmRef = useRef(null)
   const metronomeOnRef = useRef(loadMetroOnPref())
-  const metronomeVolumeRef = useRef(loadVolume(METRO_VOLUME_STORAGE_KEY))
+  const metronomeVolumeRef = useRef(loadVolume(METRO_VOLUME_STORAGE_KEY, METRO_VOLUME_MAX))
   const audioCtxRef = useRef(null)
 
   // Bar positions: array of { index: number, start: number (tick) }
@@ -380,7 +402,7 @@ export default function AlphaTabPlayer({ fileUrl, songId, stats, onStatsChange }
   const [bpm, setBpm] = useState(null)
   const [bpmInput, setBpmInput] = useState('')
   const [metronomeOn, setMetronomeOn] = useState(loadMetroOnPref)
-  const [metronomeVolume, setMetronomeVolume] = useState(() => loadVolume(METRO_VOLUME_STORAGE_KEY))
+  const [metronomeVolume, setMetronomeVolume] = useState(() => loadVolume(METRO_VOLUME_STORAGE_KEY, METRO_VOLUME_MAX))
 
   // Modal skrótów
   const [showShortcuts, setShowShortcuts] = useState(false)
@@ -1702,7 +1724,7 @@ export default function AlphaTabPlayer({ fileUrl, songId, stats, onStatsChange }
                 <span className="at-metro-vol-value">{Math.round(metronomeVolume * 100)}%</span>
                 <input
                   className="at-metro-vol"
-                  type="range" min="0" max="1" step="0.05"
+                  type="range" min="0" max={METRO_VOLUME_MAX} step="0.05"
                   value={metronomeVolume} onChange={handleMetronomeVolume}
                 />
               </label>
