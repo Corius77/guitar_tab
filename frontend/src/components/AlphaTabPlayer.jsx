@@ -94,7 +94,7 @@ function playClick(audioCtx, isAccent, volume, when) {
 // się odliczanie i rusza muzyka. Coś jak pałeczki stuknięte o siebie: krótki
 // szum przez wąski pasmowy filtr + wysoki ton, zamiast „piknięcia” metronomu.
 function playCountInClick(audioCtx, isAccent, volume, when) {
-  if (!audioCtx) return
+  if (!audioCtx) return []
   if (audioCtx.state === 'suspended') audioCtx.resume()
 
   const startAt = when ?? audioCtx.currentTime
@@ -134,6 +134,9 @@ function playCountInClick(audioCtx, isAccent, volume, when) {
   noise.stop(startAt + duration + 0.005)
   osc.start(startAt)
   osc.stop(startAt + duration + 0.005)
+  // Kliki są zaplanowane z wyprzedzeniem — zwracamy źródła, żeby pauza
+  // w trakcie odliczania mogła je uciszyć
+  return [noise, osc]
 }
 
 // O ile sekund odsunąć klik, żeby trafił w moment, w którym zdarzenie MIDI
@@ -348,6 +351,7 @@ export default function AlphaTabPlayer({ fileUrl, songId, stats, onStatsChange }
   // Odliczanie przed startem pętli
   const countInOnRef = useRef(false)
   const countInTimerRef = useRef(null)
+  const countInSourcesRef = useRef([])
   const requestPlayPauseRef = useRef(null)
   const startCountInRef = useRef(null)
   const cancelCountInRef = useRef(null)
@@ -1281,11 +1285,20 @@ export default function AlphaTabPlayer({ fileUrl, songId, stats, onStatsChange }
   // Zamiast od razu grać, klikamy jeden takt metronomem (akcent na "raz")
   // i dopiero wtedy startujemy odtwarzanie — niezależnie od tego, czy pętla
   // jest włączona.
+  // Zaplanowane, a jeszcze niezagrane kliki odliczania — wyciszamy
+  const stopCountInClicks = () => {
+    for (const src of countInSourcesRef.current) {
+      try { src.stop() } catch {}
+    }
+    countInSourcesRef.current = []
+  }
+
   const cancelCountIn = () => {
     if (countInTimerRef.current) {
       clearTimeout(countInTimerRef.current)
       countInTimerRef.current = null
     }
+    stopCountInClicks()
     setCountingIn(false)
   }
   cancelCountInRef.current = cancelCountIn
@@ -1365,16 +1378,19 @@ export default function AlphaTabPlayer({ fileUrl, songId, stats, onStatsChange }
       clearTimeout(countInTimerRef.current)
       countInTimerRef.current = null
     }
+    stopCountInClicks()
     const ctx = getAudioCtxRef.current()
     const { beats, period } = countInGrid(bar || currentBarRef.current || 1)
     const t0 = ctx.currentTime + 0.1
     for (let i = 0; i < beats; i++) {
-      playCountInClick(ctx, i === 0, metronomeVolumeRef.current, t0 + i * period)
+      countInSourcesRef.current.push(
+        ...playCountInClick(ctx, i === 0, metronomeVolumeRef.current, t0 + i * period))
     }
     setCountingIn(true)
     startSessionIfNeededRef.current()
     countInTimerRef.current = setTimeout(() => {
       countInTimerRef.current = null
+      countInSourcesRef.current = []
       setCountingIn(false)
       const at = apiRef.current
       if (!at) return
