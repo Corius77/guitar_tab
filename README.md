@@ -17,6 +17,7 @@ A web app for browsing and practicing guitar tablatures — inspired by Songster
 - Master volume control
 - **Click metronome** (Web Audio API) — distinct sounds for downbeat vs. weak beats
 - **Measure range loop** — type start/end measure numbers, toggle loop
+- **Bar notes** — short note pinned to a bar (`N`), shown as a label on the tab
 - Keyboard shortcuts (`Space`, `S`, `M`, `L`, `[`, `]`, `?` and more) with an in-player reference modal
 
 ### Library
@@ -165,6 +166,9 @@ guitar_tab/
 | `PATCH` | `/api/practice/sessions/{id}/` | End session (with loop event data) |
 | `GET` | `/api/practice/songs/{id}/stats/` | Per-song practice stats |
 | `GET` | `/api/practice/dashboard/` | Overall progress dashboard |
+| `GET` | `/api/practice/songs/{id}/bar-notes/` | Bar notes for a song |
+| `PUT` | `/api/practice/songs/{id}/bar-notes/{bar}/` | Save a bar note (empty text deletes it) |
+| `DELETE` | `/api/practice/songs/{id}/bar-notes/{bar}/` | Delete a bar note |
 
 ## Keyboard Shortcuts
 
@@ -183,6 +187,7 @@ guitar_tab/
 | `X` | Clear loop |
 | `[` / `]` | Loop start −1 / +1 |
 | `{` / `}` | Loop end −1 / +1 |
+| `N` | Note for the current bar |
 
 ## License
 

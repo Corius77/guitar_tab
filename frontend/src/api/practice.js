@@ -9,6 +9,10 @@ export const getSavedLoops   = (songId)           => axios.get(`/practice/songs/
 export const createSavedLoop = (songId, data)     => axios.post(`/practice/songs/${songId}/saved-loops/`, data)
 export const deleteSavedLoop = (id)               => axios.delete(`/practice/saved-loops/${id}/`)
 
+export const getBarNotes     = (songId)           => axios.get(`/practice/songs/${songId}/bar-notes/`)
+// Pusty tekst = usunięcie notatki
+export const saveBarNote     = (songId, bar, text) => axios.put(`/practice/songs/${songId}/bar-notes/${bar}/`, { text })
+
 export const getRecordings   = (songId)           => axios.get(`/practice/songs/${songId}/recordings/`)
 export const uploadRecording = (songId, formData) => axios.post(
   `/practice/songs/${songId}/recordings/`, formData,

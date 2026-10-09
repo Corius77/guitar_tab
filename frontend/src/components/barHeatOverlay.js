@@ -99,3 +99,47 @@ export function paintLoopRange(container, boundsLookup, start, end, on) {
     return { className: `at-loop-range-cell${on ? ' at-loop-range-cell--on' : ''}${edges}` }
   }))
 }
+
+// ── Notatki do taktów ─────────────────────────────────────────────────────
+// Karteczka w lewym górnym rogu taktu, ucięta do jego szerokości; pełny tekst
+// w tooltipie. Klik otwiera edycję — alphaTab łapie mousedown w fazie capture
+// na kontenerze, więc to onBeatDown w playerze ignoruje kliki w .at-bar-note
+// (stopPropagation tutaj nic by nie dało).
+const NOTES_LAYER_CLASS = 'at-bar-notes'
+export const BAR_NOTE_CLASS = 'at-bar-note'
+
+export function paintBarNotes(container, boundsLookup, notes, onOpen) {
+  if (!container) return
+  const has = notes && Object.keys(notes).length > 0
+  if (!boundsLookup || !has) {
+    clearBarLayer(container, NOTES_LAYER_CLASS)
+    return
+  }
+
+  let layer = container.querySelector(`:scope > .${NOTES_LAYER_CLASS}`)
+  if (!layer) {
+    layer = document.createElement('div')
+    layer.className = NOTES_LAYER_CLASS
+    container.insertBefore(layer, container.firstChild)
+  }
+
+  const frag = document.createDocumentFragment()
+  for (const system of boundsLookup.staffSystems ?? []) {
+    for (const barBounds of system.bars ?? []) {
+      const bar = barBounds.index + 1
+      const text = notes[bar]
+      if (!text) continue
+      const b = barBounds.visualBounds
+      const el = document.createElement('div')
+      el.className = BAR_NOTE_CLASS
+      el.textContent = text
+      el.title = `Takt ${bar}: ${text}\n(klik — edytuj)`
+      el.style.left = `${b.x + 2}px`
+      el.style.top = `${b.y}px`
+      el.style.maxWidth = `${Math.max(24, b.w - 6)}px`
+      el.addEventListener('click', () => onOpen?.(bar))
+      frag.appendChild(el)
+    }
+  }
+  layer.replaceChildren(frag)
+}

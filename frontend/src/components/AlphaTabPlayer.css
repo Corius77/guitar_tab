@@ -818,6 +818,41 @@
 }
 .at-saved-loop-delete:hover { color: var(--accent); background: var(--accent-dim); }
 
+/* ── Notatki do taktów ───────────────────────────────────────── */
+/* Panel — ten sam szkielet co zapisane pętle, tylko szerszy (tekst dłuższy niż nazwa) */
+.at-notes-panel { width: 320px; }
+.at-note-bar { min-width: 22px; text-align: right; }
+.at-notes-panel .at-saved-loop-load { justify-content: flex-start; }
+.at-note-item--active { background: #1f1912; }
+.at-note-delete { color: #8a7a66; padding: 0 7px; }
+.at-note-delete:disabled { opacity: 0.35; cursor: default; }
+
+/* Karteczka na tabulaturze — ten sam układ współrzędnych co .at-bar-heat */
+.at-bar-notes {
+  position: absolute;
+  z-index: 3;
+  pointer-events: none;
+}
+.at-bar-note {
+  position: absolute;
+  pointer-events: auto;
+  cursor: pointer;
+  box-sizing: border-box;
+  padding: 1px 5px;
+  font-size: 11px;
+  line-height: 15px;
+  color: #3a2a18;
+  background: #f6e3a8e6;
+  border-left: 3px solid #d2491b;
+  border-radius: 2px 4px 4px 2px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.18);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  transform: translateY(-60%);
+}
+.at-bar-note:hover { background: #fbe9b4; z-index: 1; }
+
 /* ── Track selector — grupa w dolnym pasku ───────────────────── */
 .at-track-select {
   display: flex;

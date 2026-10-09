@@ -49,6 +49,24 @@ class SavedLoop(models.Model):
         return f'{self.name} ({self.measure_start}–{self.measure_end})'
 
 
+class BarNote(models.Model):
+    """Krótka notatka przypięta do taktu — jedna na takt (per user + utwór)."""
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='bar_notes')
+    song = models.ForeignKey(Song, on_delete=models.CASCADE, related_name='bar_notes')
+    measure = models.PositiveIntegerField()
+    text = models.CharField(max_length=200)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['measure']
+        constraints = [
+            models.UniqueConstraint(fields=['user', 'song', 'measure'], name='uniq_bar_note'),
+        ]
+
+    def __str__(self):
+        return f'{self.song} t.{self.measure}: {self.text[:30]}'
+
+
 def recording_upload_path(instance, filename):
     return f'recordings/{instance.user_id}/{instance.song_id}/{filename}'
 

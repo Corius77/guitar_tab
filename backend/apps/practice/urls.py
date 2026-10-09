@@ -1,6 +1,8 @@
 from django.urls import path
 
 from .views import (
+    BarNoteDetailView,
+    BarNoteListView,
     DashboardView,
     EndSessionView,
     RecordingDetailView,
@@ -19,5 +21,7 @@ urlpatterns = [
     path('saved-loops/<int:pk>/', SavedLoopDetailView.as_view()),
     path('songs/<int:song_id>/recordings/', RecordingListView.as_view()),
     path('recordings/<int:pk>/', RecordingDetailView.as_view()),
+    path('songs/<int:song_id>/bar-notes/', BarNoteListView.as_view()),
+    path('songs/<int:song_id>/bar-notes/<int:measure>/', BarNoteDetailView.as_view()),
     path('dashboard/', DashboardView.as_view()),
 ]

@@ -1,5 +1,5 @@
 import { useEffect } from 'react'
-import { IconPlay, IconMusicNote, IconVolume, IconDrum, IconVideo, IconLoop, IconClose } from './icons'
+import { IconPlay, IconMusicNote, IconVolume, IconDrum, IconVideo, IconLoop, IconClose, IconEdit } from './icons'
 import './KeyboardShortcutsModal.css'
 
 const SHORTCUTS = [
@@ -72,6 +72,16 @@ const SHORTCUTS = [
       { keys: ['drag'], label: 'Zaznacz zakres pętli (przy krawędzi ekranu przewija)' },
       { keys: ['Shift', 'klik'], label: 'Pętla off: zakres od ostatniego kliku · pętla on: dosuń krawędź' },
       { keys: ['2× klik'], label: 'Pętla na jednym takcie' },
+    ],
+  },
+  {
+    id: 'notes',
+    group: 'Notatki',
+    icon: <IconEdit />,
+    items: [
+      { keys: ['N'], label: 'Notatka do bieżącego taktu' },
+      { keys: ['Enter'], label: 'Zapisz (pusta = usuń)' },
+      { keys: ['klik'], label: 'Klik w notatkę na tabie — edycja' },
     ],
   },
 ]

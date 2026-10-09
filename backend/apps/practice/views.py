@@ -10,8 +10,11 @@ from rest_framework.views import APIView
 
 from rest_framework.parsers import FormParser, MultiPartParser
 
-from .models import LoopEvent, PracticeSession, Recording, SavedLoop
+from apps.songs.models import Song
+
+from .models import BarNote, LoopEvent, PracticeSession, Recording, SavedLoop
 from .serializers import (
+    BarNoteSerializer,
     EndSessionSerializer,
     RecordingSerializer,
     SavedLoopSerializer,
@@ -177,6 +180,40 @@ class SavedLoopDetailView(APIView):
         except SavedLoop.DoesNotExist:
             return Response({'detail': 'Not found.'}, status=status.HTTP_404_NOT_FOUND)
         loop.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class BarNoteListView(APIView):
+    """GET /api/practice/songs/{song_id}/bar-notes/ — notatki do taktów utworu."""
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, song_id):
+        notes = BarNote.objects.filter(user=request.user, song_id=song_id)
+        return Response(BarNoteSerializer(notes, many=True).data)
+
+
+class BarNoteDetailView(APIView):
+    """PUT/DELETE /api/practice/songs/{song_id}/bar-notes/{measure}/ — zapis/usunięcie.
+
+    PUT z pustym tekstem = usunięcie (jedno pole w UI do wszystkiego).
+    """
+    permission_classes = [IsAuthenticated]
+
+    def put(self, request, song_id, measure):
+        if not Song.objects.filter(pk=song_id).exists():
+            return Response({'detail': 'Not found.'}, status=status.HTTP_404_NOT_FOUND)
+        text = str(request.data.get('text', '')).strip()
+        if not text:
+            BarNote.objects.filter(user=request.user, song_id=song_id, measure=measure).delete()
+            return Response(status=status.HTTP_204_NO_CONTENT)
+        note = BarNote.objects.filter(user=request.user, song_id=song_id, measure=measure).first()
+        ser = BarNoteSerializer(note, data={'text': text})
+        ser.is_valid(raise_exception=True)
+        ser.save(user=request.user, song_id=song_id, measure=measure)
+        return Response(ser.data)
+
+    def delete(self, request, song_id, measure):
+        BarNote.objects.filter(user=request.user, song_id=song_id, measure=measure).delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
 
 

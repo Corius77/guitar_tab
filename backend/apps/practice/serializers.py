@@ -1,6 +1,6 @@
 from rest_framework import serializers
 
-from .models import LoopEvent, PracticeSession, Recording, SavedLoop
+from .models import BarNote, LoopEvent, PracticeSession, Recording, SavedLoop
 
 
 class LoopEventSerializer(serializers.ModelSerializer):
@@ -28,6 +28,13 @@ class SavedLoopSerializer(serializers.ModelSerializer):
         model = SavedLoop
         fields = ['id', 'name', 'measure_start', 'measure_end', 'created_at']
         read_only_fields = ['id', 'created_at']
+
+
+class BarNoteSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = BarNote
+        fields = ['measure', 'text', 'updated_at']
+        read_only_fields = ['measure', 'updated_at']
 
 
 class RecordingSerializer(serializers.ModelSerializer):

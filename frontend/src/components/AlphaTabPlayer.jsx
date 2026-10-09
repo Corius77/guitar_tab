@@ -3,12 +3,12 @@ import './AlphaTabPlayer.css'
 import KeyboardShortcutsModal from './KeyboardShortcutsModal'
 import RecordingPanel from './RecordingPanel'
 import RiffsModal from './RiffsModal'
-import { IconPlay, IconPause, IconStop, IconDrum, IconReset, IconLoop, IconClose, IconBookmark, IconWarning, IconMusicNote } from './icons'
-import { paintBarHeat, clearBarHeat, paintLoopRange } from './barHeatOverlay'
+import { IconPlay, IconPause, IconStop, IconDrum, IconReset, IconLoop, IconClose, IconBookmark, IconWarning, IconMusicNote, IconEdit, IconTrash } from './icons'
+import { paintBarHeat, clearBarHeat, paintLoopRange, paintBarNotes, BAR_NOTE_CLASS } from './barHeatOverlay'
 import { RAMP_GRADIENT_CSS, makeIntensityAt } from '../utils/practiceHeat'
 import { useAuth } from '../context/AuthContext'
 import { usePlayer } from '../context/PlayerContext'
-import { startSession, endSession, getSavedLoops, createSavedLoop, deleteSavedLoop } from '../api/practice'
+import { startSession, endSession, getSavedLoops, createSavedLoop, deleteSavedLoop, getBarNotes, saveBarNote } from '../api/practice'
 
 const BPM_MIN = 20
 const BPM_MAX = 300
@@ -433,6 +433,17 @@ export default function AlphaTabPlayer({ fileUrl, songId, stats, onStatsChange }
   const [savingLoop, setSavingLoop] = useState(false)
   const [saveLoopError, setSaveLoopError] = useState('')
 
+  // Notatki do taktów: { takt: tekst }; noteBar = takt w edycji (null = panel zamknięty)
+  const [barNotes, setBarNotes] = useState({})
+  const [noteBar, setNoteBar] = useState(null)
+  const [noteDraft, setNoteDraft] = useState('')
+  const [noteSaving, setNoteSaving] = useState(false)
+  const [noteError, setNoteError] = useState('')
+  const barNotesRef = useRef({})
+  const noteBarRef = useRef(null)
+  const openNoteEditorRef = useRef(null)
+  const repaintBarNotesRef = useRef(null)
+
   // Ścieżki pliku GP
   const [tracks, setTracks] = useState([])
   const [selectedTrackIndex, setSelectedTrackIndex] = useState(null) // null = wszystkie
@@ -468,6 +479,7 @@ export default function AlphaTabPlayer({ fileUrl, songId, stats, onStatsChange }
   useEffect(() => { showShortcutsRef.current = showShortcuts }, [showShortcuts])
   useEffect(() => { showRiffsRef.current = showRiffs }, [showRiffs])
   useEffect(() => { showSavedLoopsRef.current = showSavedLoops }, [showSavedLoops])
+  useEffect(() => { noteBarRef.current = noteBar }, [noteBar])
 
   // ── Kolorowanie taktów na tabulaturze ─────────────────────────────────────
   // Warstwa jest przeliczana z boundsLookup po każdym renderze alphaTab, więc
@@ -725,6 +737,7 @@ export default function AlphaTabPlayer({ fileUrl, songId, stats, onStatsChange }
           // Nowy układ systemów → nowe bounds, warstwy muszą się przeliczyć
           repaintBarHeatRef.current()
           repaintLoopRangeRef.current()
+          repaintBarNotesRef.current?.()
         })
 
         // Syntezator dostaje kanały dopiero gdy player jest gotowy — solo/mute
@@ -881,6 +894,8 @@ export default function AlphaTabPlayer({ fileUrl, songId, stats, onStatsChange }
           const beat = e.detail
           if (destroyed || !beat) return
           const oe = e.originalEvent
+          // Klik w karteczkę notatki to edycja, nie seek/drag
+          if (oe?.target?.closest?.(`.${BAR_NOTE_CLASS}`)) return
           endDrag()
           dragRef.current = {
             bar: beat.voice.bar.index + 1, beat, moved: false,
@@ -973,6 +988,7 @@ export default function AlphaTabPlayer({ fileUrl, songId, stats, onStatsChange }
         if (showShortcutsRef.current) { setShowShortcuts(false); return }
         if (showRiffsRef.current) { setShowRiffs(false); return }
         if (showSavedLoopsRef.current) { setShowSavedLoops(false); return }
+        if (noteBarRef.current != null) { setNoteBar(null); return }
         cancelCountInRef.current?.()
         return
       }
@@ -1097,6 +1113,14 @@ export default function AlphaTabPlayer({ fileUrl, songId, stats, onStatsChange }
           break
 
         // ── Pętla — toggle / clear ────────────────────────────────────
+        // ── Notatka do taktu ─────────────────────────────────────────
+        case 'n':
+        case 'N':
+          // preventDefault — inaczej „n” wpadłoby do świeżo otwartego pola
+          e.preventDefault()
+          openNoteEditorRef.current?.()
+          break
+
         case 'l':
         case 'L':
           toggleLoopRef.current()
@@ -1635,6 +1659,76 @@ export default function AlphaTabPlayer({ fileUrl, songId, stats, onStatsChange }
     loopOnRef.current = true
   }
 
+  // ── Notatki do taktów ─────────────────────────────────────────────────────
+  useEffect(() => {
+    setBarNotes({})
+    setNoteBar(null)
+    if (!user || !songId) return
+    getBarNotes(songId)
+      .then(({ data }) => setBarNotes(Object.fromEntries(data.map(n => [n.measure, n.text]))))
+      .catch(() => {})
+  }, [user, songId])
+
+  const repaintBarNotes = () => {
+    const at = apiRef.current
+    const container = containerRef.current
+    if (!at || !container) return
+    const lookup = at.boundsLookup ?? at.renderer?.boundsLookup
+    paintBarNotes(container, lookup, barNotesRef.current, (bar) => openNoteEditorRef.current?.(bar))
+  }
+  repaintBarNotesRef.current = repaintBarNotes
+  useEffect(() => {
+    barNotesRef.current = barNotes
+    if (ready) repaintBarNotes()
+  }, [barNotes, ready])
+
+  // Bez argumentu: takt pod kursorem (grany albo ostatnio kliknięty)
+  const openNoteEditor = (bar) => {
+    if (!user || !readyRef.current) return
+    const target = bar ?? (currentBarRef.current || 1)
+    setShowSavedLoops(false)
+    setNoteBar(target)
+    setNoteDraft(barNotesRef.current[target] ?? '')
+    setNoteError('')
+  }
+  openNoteEditorRef.current = openNoteEditor
+
+  const handleSaveNote = async (text) => {
+    const bar = noteBar
+    if (bar == null || noteSaving) return
+    const clean = text.trim()
+    setNoteSaving(true)
+    setNoteError('')
+    try {
+      await saveBarNote(songId, bar, clean)
+      setBarNotes(prev => {
+        const next = { ...prev }
+        if (clean) next[bar] = clean
+        else delete next[bar]
+        return next
+      })
+      setNoteBar(null)
+    } catch (err) {
+      const msg = err?.response?.data?.detail
+        || Object.values(err?.response?.data || {}).flat().join(' ')
+        || 'Błąd zapisu'
+      setNoteError(msg)
+    }
+    setNoteSaving(false)
+  }
+
+  // Klik w notatkę na liście → skok do taktu + jej edycja
+  const jumpToNote = (bar) => {
+    const api = apiRef.current
+    const tick = barPositionsRef.current[bar - 1]?.start
+    if (api && tick != null) {
+      api.tickPosition = tick
+      currentBarRef.current = bar
+      requestAnimationFrame(() => { try { api.scrollToCursor?.() } catch {} })
+    }
+    openNoteEditor(bar)
+  }
+
   // ── Analiza riffów ───────────────────────────────────────────────────────
   // Klik w zakres taktów w modalu → pętla na ten riff + przewinięcie widoku.
   const handleRiffRangeSelect = (start, end) => {
@@ -1721,6 +1815,67 @@ export default function AlphaTabPlayer({ fileUrl, songId, stats, onStatsChange }
                 ><IconClose /></button>
               </li>
             ))}
+          </ul>
+        )}
+      </div>
+    )}
+
+    {/* Notatka do taktu — edycja + lista notatek utworu */}
+    {ready && user && noteBar != null && (
+      <div className="at-saved-loops-panel at-notes-panel">
+        <div className="at-saved-loops-header">
+          <span>Notatka · takt {noteBar}</span>
+          <button className="at-saved-loops-close" onClick={() => setNoteBar(null)} title="Zamknij (Esc)"><IconClose /></button>
+        </div>
+
+        <div className="at-save-loop-form">
+          <input
+            key={noteBar}
+            autoFocus
+            className="at-save-loop-name-input"
+            type="text"
+            placeholder="np. uważaj na zmianę chwytu…"
+            value={noteDraft}
+            onChange={e => { setNoteDraft(e.target.value); setNoteError('') }}
+            onKeyDown={e => e.key === 'Enter' && handleSaveNote(noteDraft)}
+            maxLength={200}
+          />
+          <button
+            className="at-save-loop-btn"
+            onClick={() => handleSaveNote(noteDraft)}
+            disabled={noteSaving || (!noteDraft.trim() && !barNotes[noteBar])}
+            title={noteDraft.trim() ? 'Zapisz notatkę (Enter)' : 'Pusta notatka = usunięcie'}
+          >{noteSaving ? '…' : 'Zapisz'}</button>
+          {barNotes[noteBar] && (
+            <button
+              className="at-saved-loop-delete at-note-delete"
+              onClick={() => handleSaveNote('')}
+              disabled={noteSaving}
+              title="Usuń notatkę"
+            ><IconTrash /></button>
+          )}
+        </div>
+        {noteError && <p className="at-save-loop-error">{noteError}</p>}
+
+        {Object.keys(barNotes).length === 0 ? (
+          <p className="at-no-saved-loops">Brak notatek w tym utworze</p>
+        ) : (
+          <ul className="at-saved-loops-list">
+            {Object.entries(barNotes)
+              .map(([bar, text]) => [Number(bar), text])
+              .sort((a, b) => a[0] - b[0])
+              .map(([bar, text]) => (
+                <li key={bar} className={`at-saved-loop-item ${bar === noteBar ? 'at-note-item--active' : ''}`}>
+                  <button
+                    className="at-saved-loop-load"
+                    onClick={() => jumpToNote(bar)}
+                    title={`Skocz do taktu ${bar}: ${text}`}
+                  >
+                    <span className="at-saved-loop-range at-note-bar">{bar}</span>
+                    <span className="at-saved-loop-name">{text}</span>
+                  </button>
+                </li>
+              ))}
           </ul>
         )}
       </div>
@@ -1879,9 +2034,16 @@ export default function AlphaTabPlayer({ fileUrl, songId, stats, onStatsChange }
             {user && (
               <button
                 className={`at-loop-bookmarks ${showSavedLoops ? 'at-loop-bookmarks--open' : ''}`}
-                onClick={() => setShowSavedLoops(prev => !prev)}
+                onClick={() => { setNoteBar(null); setShowSavedLoops(prev => !prev) }}
                 title="Zapisane pętle"
               ><IconBookmark />{savedLoops.length > 0 && <span className="at-loop-bookmarks-count">{savedLoops.length}</span>}</button>
+            )}
+            {user && (
+              <button
+                className={`at-loop-bookmarks ${noteBar != null ? 'at-loop-bookmarks--open' : ''}`}
+                onClick={() => (noteBar != null ? setNoteBar(null) : openNoteEditor())}
+                title="Notatka do bieżącego taktu (N) — klik w notatkę na tabie też ją edytuje"
+              ><IconEdit />{Object.keys(barNotes).length > 0 && <span className="at-loop-bookmarks-count">{Object.keys(barNotes).length}</span>}</button>
             )}
           </div>
         )}
