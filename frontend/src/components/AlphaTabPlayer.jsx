@@ -216,6 +216,12 @@ const METRO_VOLUME_STORAGE_KEY = 'guitarTab.metronomeVolume'
 const METRO_ON_STORAGE_KEY = 'guitarTab.metronomeOn'
 const BPM_STORAGE_KEY = 'guitarTab.bpmBySong'
 
+// Głośność ścieżek do 200%, suwak kwadratowy: dół skali drobniejszy (ciszej
+// da się ustawić precyzyjnie), 100% wypada na ~70% suwaka.
+const MASTER_VOLUME_MAX = 2
+const volToPos = (v) => Math.sqrt(Math.max(0, v) / MASTER_VOLUME_MAX)
+const posToVol = (p) => Math.round(MASTER_VOLUME_MAX * p * p * 1000) / 1000
+
 // Metronom może iść ponad 100% — przy głośnym podkładzie/gitarze 1.0 to za mało.
 const METRO_VOLUME_MAX = 3
 
@@ -330,7 +336,7 @@ export default function AlphaTabPlayer({ fileUrl, songId, stats, onStatsChange }
   // Refy do użycia w handlerze klawiszy (bez stale closures)
   const readyRef = useRef(false)
   const bpmRef = useRef(null)
-  const masterVolumeRef = useRef(loadVolume(MASTER_VOLUME_STORAGE_KEY))
+  const masterVolumeRef = useRef(loadVolume(MASTER_VOLUME_STORAGE_KEY, MASTER_VOLUME_MAX))
   const loopOnRef = useRef(false)
   const loopStartRef = useRef(1)
   const loopEndRef = useRef(1)
@@ -398,7 +404,7 @@ export default function AlphaTabPlayer({ fileUrl, songId, stats, onStatsChange }
   const [error, setError] = useState('')
   const [currentTime, setCurrentTime] = useState(0)
   const [endTime, setEndTime] = useState(0)
-  const [masterVolume, setMasterVolume] = useState(() => loadVolume(MASTER_VOLUME_STORAGE_KEY))
+  const [masterVolume, setMasterVolume] = useState(() => loadVolume(MASTER_VOLUME_STORAGE_KEY, MASTER_VOLUME_MAX))
   const [bpm, setBpm] = useState(null)
   const [bpmInput, setBpmInput] = useState('')
   const [metronomeOn, setMetronomeOn] = useState(loadMetroOnPref)
@@ -1034,7 +1040,7 @@ export default function AlphaTabPlayer({ fileUrl, songId, stats, onStatsChange }
         case 'ArrowUp':
           if (!e.shiftKey) {
             e.preventDefault()
-            const newVol = Math.min(1, masterVolumeRef.current + 0.05)
+            const newVol = posToVol(Math.min(1, volToPos(masterVolumeRef.current) + 0.05))
             setMasterVolume(newVol)
             if (apiRef.current) apiRef.current.masterVolume = newVol
           }
@@ -1043,7 +1049,7 @@ export default function AlphaTabPlayer({ fileUrl, songId, stats, onStatsChange }
         case 'ArrowDown':
           if (!e.shiftKey) {
             e.preventDefault()
-            const newVol = Math.max(0, masterVolumeRef.current - 0.05)
+            const newVol = posToVol(Math.max(0, volToPos(masterVolumeRef.current) - 0.05))
             setMasterVolume(newVol)
             if (apiRef.current) apiRef.current.masterVolume = newVol
           }
@@ -1247,7 +1253,7 @@ export default function AlphaTabPlayer({ fileUrl, songId, stats, onStatsChange }
 
   // ── Volume ────────────────────────────────────────────────────────────────
   const handleVolume = (e) => {
-    const v = parseFloat(e.target.value)
+    const v = posToVol(parseFloat(e.target.value))
     setMasterVolume(v)
     if (apiRef.current) apiRef.current.masterVolume = v
   }
@@ -1707,9 +1713,9 @@ export default function AlphaTabPlayer({ fileUrl, songId, stats, onStatsChange }
             title="Stop"
           ><IconStop /></button>
 
-          <label className="at-control-label">
-            <span>Vol</span>
-            <input type="range" min="0" max="1" step="0.05" value={masterVolume} onChange={handleVolume} />
+          <label className="at-control-label" title="Głośność ścieżek, do 200% (↑/↓)">
+            <span>Vol {Math.round(masterVolume * 100)}%</span>
+            <input type="range" min="0" max="1" step="0.01" value={volToPos(masterVolume)} onChange={handleVolume} />
           </label>
 
           <div className="at-metronome-group">
