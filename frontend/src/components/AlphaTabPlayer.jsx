@@ -1142,14 +1142,33 @@ export default function AlphaTabPlayer({ fileUrl, songId, stats, onStatsChange }
   // Klik myszą zostawiał fokus na przycisku, więc kolejna Spacja aktywowała
   // ten przycisk zamiast Play/Pause. Po kliknięciu myszą zdejmujemy fokus;
   // klik wywołany z klawiatury ma detail === 0, więc nawigacja Tab-em działa.
+  // Dotyczy też suwaków/checkboxów (inaczej uchodzą za „pisanie” i połykają
+  // Spację) i całej strony poza oknami modalnymi. Select zdejmujemy po wyborze.
   useEffect(() => {
+    const inModal = (el) => el.closest('.modal, .player-youtube-modal')
     const onClick = (e) => {
       if (e.detail === 0) return
-      const btn = e.target.closest?.('button')
-      if (btn && btn.closest('.at-bottom-bar, .at-wrap, .at-saved-loops-panel')) btn.blur()
+      const el = e.target.closest?.('button, input[type=range], input[type=checkbox], input[type=radio]')
+      if (el && !inModal(el)) el.blur()
+    }
+    const onChange = (e) => {
+      if (e.target.tagName === 'SELECT' && !inModal(e.target)) e.target.blur()
+    }
+    // Suwak puszczony poza sobą nie dostaje clicka — łapiemy samo puszczenie
+    const onPointerUp = () => {
+      setTimeout(() => {
+        const a = document.activeElement
+        if (a?.matches?.('input[type=range]') && !inModal(a)) a.blur()
+      }, 0)
     }
     document.addEventListener('click', onClick)
-    return () => document.removeEventListener('click', onClick)
+    document.addEventListener('change', onChange)
+    document.addEventListener('pointerup', onPointerUp)
+    return () => {
+      document.removeEventListener('click', onClick)
+      document.removeEventListener('change', onChange)
+      document.removeEventListener('pointerup', onPointerUp)
+    }
   }, [])
 
   // ── Skok do taktu ────────────────────────────────────────────────────────
