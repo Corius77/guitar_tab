@@ -234,6 +234,34 @@
   border-right: 1px solid rgba(255,255,255,0.05);
 }
 
+/* Odliczanie przed filmem — ten sam przełącznik co 1·2·3·4 w playerze */
+.yt-countin {
+  margin-left: auto;
+  margin-right: 8px;
+  flex-shrink: 0;
+  height: 28px;
+  padding: 0 8px;
+  background: var(--surface-3);
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  color: var(--text-muted);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.yt-countin:hover { color: var(--text); }
+.yt-countin--on {
+  background: #241a10;
+  border-color: #6f93b060;
+  color: #9bb6c8;
+  box-shadow: 0 0 10px #6f93b030;
+}
+.yt-countin--counting {
+  animation: at-countin-pulse 0.5s ease-in-out infinite alternate;
+}
+
 .player-youtube-close {
   background: none;
   border: none;

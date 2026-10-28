@@ -325,7 +325,7 @@ function applyMixToApi(at, score, solo, backing, idx) {
 }
 
 // ── Component ──────────────────────────────────────────────────────────────
-export default function AlphaTabPlayer({ fileUrl, songId, stats, onStatsChange }) {
+export default function AlphaTabPlayer({ fileUrl, songId, stats, onStatsChange, countInApiRef, onCountInChange }) {
   const containerRef = useRef(null)
   const apiRef = useRef(null)
   const originalBpmRef = useRef(null)
@@ -475,6 +475,7 @@ export default function AlphaTabPlayer({ fileUrl, songId, stats, onStatsChange }
   useEffect(() => { soloTrackRef.current = soloTrack }, [soloTrack])
   useEffect(() => { backingTrackRef.current = backingTrack }, [backingTrack])
   useEffect(() => { countInOnRef.current = countInOn }, [countInOn])
+  useEffect(() => { onCountInChange?.(countInOn) }, [countInOn]) // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { selectedTrackIndexRef.current = selectedTrackIndex }, [selectedTrackIndex])
   useEffect(() => { showShortcutsRef.current = showShortcuts }, [showShortcuts])
   useEffect(() => { showRiffsRef.current = showRiffs }, [showRiffs])
@@ -1393,12 +1394,13 @@ export default function AlphaTabPlayer({ fileUrl, songId, stats, onStatsChange }
   }
 
   // Siatka odliczania dla taktu: ile klików i co ile sekund.
-  const countInGrid = (bar) => {
+  // `speed` — mnożnik tempa; domyślnie tempo ćwiczenia z suwaka BPM.
+  const countInGrid = (bar, speed) => {
     const mb = scoreRef.current?.masterBars?.[bar - 1]
     const num = mb?.timeSignatureNumerator || timeSigNumeratorRef.current || 4
     const den = mb?.timeSignatureDenominator || 4
     // Tempo w MIDI zawsze dotyczy ćwierćnuty; playbackSpeed to nasze bpm/oryginalne
-    const speed = apiRef.current?.playbackSpeed
+    speed ??= apiRef.current?.playbackSpeed
       || ((bpmRef.current && originalBpmRef.current) ? bpmRef.current / originalBpmRef.current : 1)
     const quarter = 60 / (scoreTempoAtBar(bar) * speed)
     let beats = num
@@ -1458,6 +1460,35 @@ export default function AlphaTabPlayer({ fileUrl, songId, stats, onStatsChange }
     if (apiRef.current && loopOnRef.current) apiRef.current.isLooping = !next
   }
   toggleCountInRef.current = toggleCountIn
+
+  // Odliczanie dla wideo z YouTube (PlayerPage). Film leci w oryginalnym
+  // tempie utworu razy jego własna prędkość, więc suwak BPM tu nie gra roli;
+  // metrum i tempo z 1. taktu, bo pozycji filmu nie da się przełożyć na takt.
+  // Osobne źródła i timer — nie gryzie się z odliczaniem tabulatury.
+  // Zwraca funkcję anulującą.
+  const runVideoCountIn = (rate, onDone) => {
+    const ctx = getAudioCtx()
+    const { beats, period } = countInGrid(1, rate || 1)
+    const t0 = ctx.currentTime + 0.1
+    const sources = []
+    for (let i = 0; i < beats; i++) {
+      sources.push(...playCountInClick(ctx, i === 0, metronomeVolumeRef.current, t0 + i * period))
+    }
+    const timer = setTimeout(onDone, Math.max(0, (t0 - ctx.currentTime + beats * period) * 1000))
+    return () => {
+      clearTimeout(timer)
+      for (const src of sources) {
+        try { src.stop() } catch {}
+      }
+    }
+  }
+  if (countInApiRef) {
+    countInApiRef.current = {
+      isOn: () => countInOnRef.current,
+      toggle: toggleCountIn,
+      run: runVideoCountIn,
+    }
+  }
 
   // ── Loop ──────────────────────────────────────────────────────────────────
   const clampBar = (val, min, max) => Math.max(min, Math.min(max, val))

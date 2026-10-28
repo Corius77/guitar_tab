@@ -28,6 +28,11 @@ export default function PlayerPage() {
   const ytPlayerRef = useRef(null)
   const ytHostRef = useRef(null)
   const lastYtTimesRef = useRef({}) // { videoId: czas }
+  // Odliczanie 1·2·3·4 przed filmem — funkcje dostarcza AlphaTabPlayer
+  const countInApiRef = useRef(null)
+  const ytCountInCancelRef = useRef(null)
+  const [ytCountInOn, setYtCountInOn] = useState(false)
+  const [ytCountingIn, setYtCountingIn] = useState(false)
 
   const getYouTubeId = (url) => {
     if (!url) return null
@@ -98,6 +103,48 @@ export default function PlayerPage() {
   useEffect(() => {
     if (!showYoutube || !activeVideoId) return
     let cancelled = false
+    // Ostatni stan poza buforowaniem — seek/zacięcie w trakcie grania
+    // (PLAYING → BUFFERING → PLAYING) nie może odpalać odliczania
+    let lastState = -1
+    // Nasze własne playVideo() po odliczaniu — przepuszczamy bez przechwytu
+    let passNext = false
+
+    const cancelCountIn = () => {
+      ytCountInCancelRef.current?.()
+      ytCountInCancelRef.current = null
+      setYtCountingIn(false)
+    }
+
+    // YT nie da się zatrzymać przed startem, więc łapiemy pierwsze PLAYING:
+    // pauza, takt klików, powrót do miejsca startu i play
+    const onStateChange = (event) => {
+      const S = window.YT.PlayerState
+      const p = event.target
+      const prev = lastState
+      if (event.data !== S.BUFFERING) lastState = event.data
+      if (event.data !== S.PLAYING || prev === S.PLAYING) return
+      if (passNext) { passNext = false; return }
+      // Play wciśnięty w trakcie odliczania — nie czekaj, niech gra
+      if (ytCountInCancelRef.current) { cancelCountIn(); return }
+      const api = countInApiRef.current
+      if (!api?.isOn()) return
+      let t = 0
+      try {
+        t = p.getCurrentTime()
+        p.pauseVideo()
+      } catch { return }
+      setYtCountingIn(true)
+      ytCountInCancelRef.current = api.run(p.getPlaybackRate?.() || 1, () => {
+        ytCountInCancelRef.current = null
+        setYtCountingIn(false)
+        if (cancelled) return
+        passNext = true
+        try {
+          p.seekTo(t, true)
+          p.playVideo()
+        } catch { passNext = false }
+      })
+    }
 
     const createPlayer = () => {
       const host = ytHostRef.current
@@ -118,6 +165,7 @@ export default function PlayerPage() {
           'onReady': (event) => {
             if (cancelled) { try { event.target.destroy() } catch { /* ignore */ } }
           },
+          'onStateChange': onStateChange,
         }
       })
     }
@@ -140,6 +188,7 @@ export default function PlayerPage() {
 
     return () => {
       cancelled = true
+      cancelCountIn()
       saveYtTime()
       try { ytPlayerRef.current?.destroy?.() } catch { /* ignore */ }
       ytPlayerRef.current = null
@@ -311,6 +360,13 @@ export default function PlayerPage() {
                   </div>
                 ))}
               </div>
+              <button
+                className={`yt-countin ${ytCountInOn ? 'yt-countin--on' : ''} ${ytCountingIn ? 'yt-countin--counting' : ''}`}
+                onClick={() => countInApiRef.current?.toggle()}
+                title={ytCountInOn
+                  ? 'Odliczanie włączone — jeden takt metronomu przed każdym startem filmu (C)'
+                  : 'Włącz odliczanie (jeden takt metronomu) przed startem filmu (C)'}
+              >1·2·3·4</button>
               <button className="player-youtube-close" onClick={handleCloseYoutube}><IconClose /></button>
             </div>
             <div className="player-youtube-body">
@@ -325,6 +381,8 @@ export default function PlayerPage() {
         songId={song.id}
         stats={stats}
         onStatsChange={fetchStats}
+        countInApiRef={countInApiRef}
+        onCountInChange={setYtCountInOn}
       />
 
       <div className="player-fabs">
