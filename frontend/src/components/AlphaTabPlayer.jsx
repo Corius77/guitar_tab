@@ -1,11 +1,11 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import './AlphaTabPlayer.css'
 import KeyboardShortcutsModal from './KeyboardShortcutsModal'
 import RecordingPanel from './RecordingPanel'
 import RiffsModal from './RiffsModal'
 import { IconPlay, IconPause, IconStop, IconDrum, IconReset, IconLoop, IconClose, IconBookmark, IconWarning, IconMusicNote, IconEdit, IconTrash } from './icons'
 import { paintBarHeat, clearBarHeat, paintLoopRange, paintBarNotes, BAR_NOTE_CLASS } from './barHeatOverlay'
-import { RAMP_GRADIENT_CSS, makeIntensityAt } from '../utils/practiceHeat'
+import { RAMP_GRADIENT_CSS, makeIntensityAt, songProgress, LEARNED_PLAYS } from '../utils/practiceHeat'
 import { useAuth } from '../context/AuthContext'
 import { usePlayer } from '../context/PlayerContext'
 import { startSession, endSession, getSavedLoops, createSavedLoop, deleteSavedLoop, getBarNotes, saveBarNote } from '../api/practice'
@@ -309,6 +309,19 @@ function saveBarHeatPref(on) {
   try { localStorage.setItem(BAR_HEAT_STORAGE_KEY, on ? 'true' : 'false') } catch {}
 }
 
+// ── Zastój na jednej pętli ─────────────────────────────────────────────────
+// Po tylu minutach grania tego samego zakresu w jednej sesji wyskakuje
+// przypomnienie, że reszta utworu czeka. Liczy się tylko czas, gdy pętla
+// faktycznie gra (z odliczaniem między okrążeniami), nie pauzy.
+const STUCK_MINUTES = 8
+const STUCK_SNOOZE_MINUTES = 5
+
+function formatMinSec(secs) {
+  const m = Math.floor(secs / 60)
+  const s = secs % 60
+  return `${m}:${String(s).padStart(2, '0')}`
+}
+
 // Ustawia miks wg trybu: solo → słychać tylko wybraną ścieżkę,
 // podkład → słychać wszystko POZA wybraną (grasz ją sam na żywo).
 // idx === null (wszystkie ścieżki) → oba tryby bez sensu, czyścimy.
@@ -501,7 +514,11 @@ export default function AlphaTabPlayer({ fileUrl, songId, stats, onStatsChange, 
     // `boundsLookup` przeniósł się na api w nowszych alphaTabach, ale w 1.8
     // wciąż siedzi na rendererze — bierzemy to, co jest.
     const lookup = at.boundsLookup ?? at.renderer?.boundsLookup
-    paintBarHeat(container, lookup, makeIntensityAt(statsRef.current, liveBarsRef.current))
+    // Kreskowanie nieruszonych dopiero, gdy cokolwiek już grane — w świeżym
+    // utworze cały tab w paski to szum, a nie informacja
+    const heat = statsRef.current?.measure_heat
+    const anyPlayed = (heat && Object.keys(heat).length > 0) || liveBarsRef.current.size > 0
+    paintBarHeat(container, lookup, makeIntensityAt(statsRef.current, liveBarsRef.current), anyPlayed)
   }
   const repaintBarHeatRef = useRef(repaintBarHeat)
   repaintBarHeatRef.current = repaintBarHeat
@@ -521,6 +538,48 @@ export default function AlphaTabPlayer({ fileUrl, songId, stats, onStatsChange, 
   }
   const toggleBarHeatRef = useRef(toggleBarHeat)
   toggleBarHeatRef.current = toggleBarHeat
+
+  // Pokrycie utworu i pierwszy takt, którego jeszcze nie poznałeś
+  const progressInfo = useMemo(
+    () => songProgress(stats, liveBarsRef.current, totalBars),
+    [stats, liveBarsTick, totalBars], // eslint-disable-line react-hooks/exhaustive-deps
+  )
+
+  // ── Zastój na pętli ───────────────────────────────────────────────────────
+  // Sekundy grania per zakres ("start-end") w tej sesji — powrót do tej samej
+  // pętli liczy dalej, nie od zera. Próg per zakres, bo "jeszcze 5 min"
+  // i "nie przypominaj" dotyczą tego jednego fragmentu.
+  const loopTimeRef = useRef(new Map())
+  const stuckLimitRef = useRef(new Map())
+  const [loopSecs, setLoopSecs] = useState(0)
+  const [stuckLimit, setStuckLimit] = useState(STUCK_MINUTES * 60)
+  const loopKey = `${loopStart}-${loopEnd}`
+
+  useEffect(() => {
+    loopTimeRef.current = new Map()
+    stuckLimitRef.current = new Map()
+  }, [songId])
+
+  useEffect(() => {
+    setLoopSecs(loopTimeRef.current.get(loopKey) ?? 0)
+    setStuckLimit(stuckLimitRef.current.get(loopKey) ?? STUCK_MINUTES * 60)
+    if (!loopOn) return
+    const id = setInterval(() => {
+      // Odliczanie między okrążeniami to też granie tej pętli
+      if (!playingRef.current && !countInTimerRef.current) return
+      const next = (loopTimeRef.current.get(loopKey) ?? 0) + 1
+      loopTimeRef.current.set(loopKey, next)
+      setLoopSecs(next)
+    }, 1000)
+    return () => clearInterval(id)
+  }, [loopOn, loopKey, songId])
+
+  const stuckShown = loopOn && loopSecs >= stuckLimit
+
+  const snoozeStuck = (limit) => {
+    stuckLimitRef.current.set(loopKey, limit)
+    setStuckLimit(limit)
+  }
 
   // ── Zakończenie sesji (fire-and-forget) ───────────────────────────────────
   const buildSessionPayload = () => {
@@ -1628,6 +1687,25 @@ export default function AlphaTabPlayer({ fileUrl, songId, stats, onStatsChange, 
   }
   toggleLoopRef.current = toggleLoop
 
+  // Skok do taktu spoza pętli = wyłącz pętlę (jak klik na tabie), zakres zostaje.
+  // Gdy gra — gra dalej od nowego miejsca; w trakcie odliczania między
+  // okrążeniami odliczanie rusza od nowa, już od nowego taktu.
+  const leaveLoopTo = (bar) => {
+    const at = apiRef.current
+    if (!at) return
+    const wasCounting = !!countInTimerRef.current
+    if (wasCounting) cancelCountIn()
+    if (loopOnRef.current && (bar < loopStartRef.current || bar > loopEndRef.current)) {
+      at.isLooping = false
+      at.playbackRange = null
+      setLoopOn(false)
+      loopOnRef.current = false
+    }
+    seekToBar(bar)
+    selectAnchorRef.current = bar
+    if (wasCounting) requestPlayPause()
+  }
+
   const clearLoop = () => {
     setLoopOn(false)
     setLoopStart(1)
@@ -1912,6 +1990,51 @@ export default function AlphaTabPlayer({ fileUrl, songId, stats, onStatsChange, 
       </div>
     )}
 
+    {/* Zastój na pętli — przypomnienie, że reszta utworu czeka */}
+    {ready && stuckShown && (() => {
+      const next = loopEnd < totalBars ? loopEnd + 1 : null
+      const fresh = progressInfo?.nextNewBar
+      const showFresh = fresh != null && (fresh < loopStart || fresh > loopEnd) && fresh !== next
+      return (
+        <div className="at-saved-loops-panel at-stuck-panel" role="status">
+          <div className="at-saved-loops-header">
+            <span>Takty {loopStart}–{loopEnd} · {Math.floor(loopSecs / 60)} min</span>
+            <button
+              className="at-saved-loops-close"
+              onClick={() => snoozeStuck(Infinity)}
+              title="Nie przypominaj o tym zakresie w tej sesji"
+            ><IconClose /></button>
+          </div>
+          <p className="at-stuck-text">
+            Szlifujesz ten fragment już dłuższą chwilę. Wystarczy, że jest „dość dobrze” —
+            wrócisz do niego później, a reszta utworu czeka
+            {fresh != null ? <> (nowe od taktu <b>{fresh}</b>)</> : null}.
+          </p>
+          <div className="at-stuck-actions">
+            {next != null && (
+              <button
+                className="at-save-loop-btn"
+                onClick={() => leaveLoopTo(next)}
+                title={`Wyłącz pętlę i graj dalej od taktu ${next}`}
+              >Graj dalej od t. {next}</button>
+            )}
+            {showFresh && (
+              <button
+                className="at-save-loop-btn"
+                onClick={() => leaveLoopTo(fresh)}
+                title={`Pierwszy takt zagrany mniej niż ${LEARNED_PLAYS}× — wyłącz pętlę i skocz tam`}
+              >Do nowych: t. {fresh}</button>
+            )}
+            <button
+              className="at-stuck-snooze"
+              onClick={() => snoozeStuck(loopSecs + STUCK_SNOOZE_MINUTES * 60)}
+              title={`Przypomnij znowu za ${STUCK_SNOOZE_MINUTES} min`}
+            >Jeszcze {STUCK_SNOOZE_MINUTES} min</button>
+          </div>
+        </div>
+      )
+    })()}
+
     {/* Dolny pasek — tempo, pętla i ścieżka w jednym.
         Bramkowany na totalBars (nie na ready), żeby przy zmianie utworu został
         widoczny ze starymi danymi i tylko przygasł, zamiast znikać. */}
@@ -2048,6 +2171,13 @@ export default function AlphaTabPlayer({ fileUrl, songId, stats, onStatsChange, 
               <IconLoop />
             </button>
 
+            {loopOn && loopSecs >= 60 && (
+              <span
+                className={`at-loop-time ${loopSecs >= stuckLimit * 0.75 ? 'at-loop-time--warn' : ''}`}
+                title={`Czas grania tego zakresu w tej sesji (przypomnienie po ${STUCK_MINUTES} min)`}
+              >{formatMinSec(loopSecs)}</span>
+            )}
+
             <button
               className={`at-loop-toggle at-loop-countin ${countInOn ? 'at-loop-toggle--on' : ''}`}
               onClick={toggleCountIn}
@@ -2124,6 +2254,23 @@ export default function AlphaTabPlayer({ fileUrl, songId, stats, onStatsChange, 
                 />
                 <span className="at-heat-legend-label">często</span>
               </span>
+            )}
+
+            {progressInfo && progressInfo.played > 0 && (
+              <button
+                className="at-progress-chip"
+                onClick={() => progressInfo.nextNewBar != null && leaveLoopTo(progressInfo.nextNewBar)}
+                disabled={progressInfo.nextNewBar == null}
+                title={progressInfo.nextNewBar != null
+                  ? `Zagrane ${progressInfo.played} z ${totalBars} taktów. Takt ${progressInfo.nextNewBar} to pierwszy zagrany mniej niż ${LEARNED_PLAYS}× — klik, żeby tam skoczyć`
+                  : `Każdy takt zagrany co najmniej ${LEARNED_PLAYS}×`}
+              >
+                <span className="at-progress-chip-value">{Math.round(progressInfo.coverage)}%</span>
+                <span className="at-progress-chip-label">utworu</span>
+                {progressInfo.nextNewBar != null
+                  ? <span className="at-progress-chip-next">nowe od t. {progressInfo.nextNewBar} →</span>
+                  : <span className="at-progress-chip-next">cały przerobiony</span>}
+              </button>
             )}
           </div>
         )}

@@ -122,3 +122,29 @@ export function makeIntensityAt(stats, liveCounts) {
     return total <= 0 ? 0 : Math.min(1, total / scale)
   }
 }
+
+// ── Postęp w utworze ─────────────────────────────────────────────────────
+// Ile przejść, żeby takt przestał być "nowy". Celowo nisko — chodzi o to,
+// żeby go poznać, nie wyszlifować.
+export const LEARNED_PLAYS = 3
+
+/**
+ * Pokrycie utworu + pierwszy takt, którego jeszcze nie poznałeś.
+ *   played     — ile taktów zagranych choć raz (jak coverage_percent z backendu)
+ *   coverage   — to samo w procentach
+ *   nextNewBar — pierwszy takt od początku z mniej niż LEARNED_PLAYS przejść
+ *                (null = cały utwór przerobiony)
+ * `liveCounts` jak w makeIntensityAt — przejścia z trwającej sesji.
+ */
+export function songProgress(stats, liveCounts, totalBars) {
+  if (!totalBars) return null
+  const heat = stats?.measure_heat
+  let played = 0
+  let nextNewBar = null
+  for (let bar = 1; bar <= totalBars; bar++) {
+    const total = Number(pickMeasure(heat, bar) ?? 0) + (liveCounts?.get(bar) ?? 0)
+    if (total > 0) played++
+    if (nextNewBar == null && total < LEARNED_PLAYS) nextNewBar = bar
+  }
+  return { played, coverage: (played / totalBars) * 100, nextNewBar }
+}

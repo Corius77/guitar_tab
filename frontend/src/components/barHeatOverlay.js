@@ -77,11 +77,15 @@ export function clearBarHeat(container) {
  * @param container element, na którym siedzi AlphaTabApi (nasz containerRef)
  * @param boundsLookup api.renderer.boundsLookup po renderFinished
  * @param intensityAt (numer taktu 1-based) → 0–1; 0 = nie maluj
+ * @param markCold takty z 0 kreskuj jako nieruszone (zamiast zostawiać puste)
  */
-export function paintBarHeat(container, boundsLookup, intensityAt) {
+export function paintBarHeat(container, boundsLookup, intensityAt, markCold = false) {
   paintBarLayer(container, LAYER_CLASS, boundsLookup, intensityAt && ((bar) => {
     const t = intensityAt(bar)
-    return t > 0 ? { className: 'at-bar-heat-cell', background: rampColorCss(t) } : null
+    if (t > 0) return { className: 'at-bar-heat-cell', background: rampColorCss(t) }
+    // Nigdy niegrany takt — kreskowanie, żeby nietknięta reszta utworu
+    // rzucała się w oczy tak samo jak oklepane fragmenty
+    return markCold ? { className: 'at-bar-heat-cell at-bar-heat-cell--cold' } : null
   }))
 }
 

@@ -939,3 +939,79 @@
     width: auto;
   }
 }
+
+/* ── Nieruszone takty — kreskowanie (pod multiply, jak reszta heat) ── */
+.at-bar-heat-cell--cold {
+  background: repeating-linear-gradient(
+    135deg,
+    rgba(90, 80, 70, 0.22) 0 2px,
+    transparent 2px 9px
+  );
+}
+
+/* ── Pokrycie utworu + skok do nowego materiału ──────────────── */
+.at-progress-chip {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  background: var(--surface-3);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 4px 9px;
+  font-family: inherit;
+  color: var(--text-muted);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+.at-progress-chip:hover:not(:disabled) { background: #2a2218; border-color: var(--border-2); color: var(--text); }
+.at-progress-chip:disabled { cursor: default; }
+.at-progress-chip-value { font-size: 12px; font-weight: 700; color: var(--text); }
+.at-progress-chip-label { font-size: 9px; letter-spacing: 0.06em; text-transform: uppercase; }
+.at-progress-chip-next { font-size: 11px; color: #d9a35b; }
+
+/* ── Zastój na pętli ─────────────────────────────────────────── */
+.at-loop-time {
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-muted);
+  user-select: none;
+}
+.at-loop-time--warn { color: #d9a35b; }
+
+.at-stuck-panel {
+  left: auto;
+  right: 28px;
+  width: 320px;
+}
+.at-stuck-text {
+  margin: 0;
+  padding: 10px 14px 4px;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--text-muted);
+}
+.at-stuck-text b { color: var(--text); }
+.at-stuck-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 8px 14px 12px;
+}
+.at-stuck-snooze {
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text-muted);
+  font-family: inherit;
+  font-size: 11px;
+  padding: 5px 9px;
+  cursor: pointer;
+}
+.at-stuck-snooze:hover { color: var(--text); border-color: var(--border-2); }
+
+.at-stuck-actions .at-save-loop-btn { padding: 6px 10px; }
+
+@media (max-width: 640px) {
+  .at-stuck-panel { left: 12px; right: 12px; width: auto; }
+}
